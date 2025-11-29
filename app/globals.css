@@ -4,11 +4,11 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: #ffffff; 
+  background: #ffffff;
 }
 
-
-html, body {
+html,
+body {
   height: 100%;
   width: 100%;
   margin: 0;
@@ -16,7 +16,15 @@ html, body {
   overflow: hidden;
 }
 
-
-main {
+html {
+  scroll-behavior: smooth;
 }
 
+section {
+  scroll-margin-top: 90px; /* adjust based on navbar height */
+}
+
+#features {
+  background: "yellow";
+  height: "150vh";
+}
