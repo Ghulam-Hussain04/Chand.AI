@@ -15,8 +15,8 @@ const developers = [
   },
   {
     name: "Ghulam Hussain",
-    role: "Frontend Developer",
-    image: "/ghulam_hussain.png",
+    role: "Vision Specialist",
+    image: "/ghulam_hussain.jpg",
     bio: "Specializing in DL and Computer Vision for lunar terrain analysis.",
     links: {
       github: "#",
@@ -63,7 +63,7 @@ export default function Developers() {
               {/* Profile Image */}
               <div className="relative w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden border-4 border-amber-400/30 group-hover:border-amber-400 transition-colors">
                 <Image
-                  src={dev.image || "/placeholder.svg"}
+                  src={dev.image || "/fallback_profile.png"}
                   alt={dev.name}
                   fill
                   className="object-cover"

@@ -63,7 +63,6 @@
   --star-bright: oklch(0.98 0.02 90);
 }
 
-/* Dark mode uses same values since we want dark theme */
 .dark {
   --background: oklch(0.08 0.01 260);
   --foreground: oklch(0.98 0 0);
@@ -117,7 +116,6 @@
   --accent-foreground: oklch(0.15 0.02 260);
   --destructive: oklch(0.65 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.82 0.01 260);
   --input: oklch(0.92 0.01 260);
   --ring: oklch(0.75 0.14 85);
   --chart-1: oklch(0.72 0.15 85);
@@ -192,7 +190,7 @@
   }
 }
 
-/* Starfield animation */
+/* Custom keyframe animations */
 @keyframes twinkle {
   0%,
   100% {
@@ -213,6 +211,27 @@
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
 .animate-twinkle {
   animation: twinkle 3s ease-in-out infinite;
 }
@@ -221,6 +240,15 @@
   animation: float 6s ease-in-out infinite;
 }
 
-html, body {
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+html,
+body {
   transition: background-color 0.35s ease, color 0.35s ease;
 }
