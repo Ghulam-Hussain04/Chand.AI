@@ -99,6 +99,45 @@
   --sidebar-ring: oklch(0.8 0.16 85);
 }
 
+.light {
+  --border: oklch(0.75 0.01 260);
+  --foreground: oklch(0.2 0.01 260);
+  --background: oklch(0.98 0 0);
+  --card: oklch(0.96 0.01 95);
+  --card-foreground: oklch(0.15 0.02 260);
+  --popover: oklch(0.97 0.01 95);
+  --popover-foreground: oklch(0.15 0.02 260);
+  --primary: oklch(0.65 0.12 85);
+  --primary-foreground: oklch(0.15 0.02 260);
+  --secondary: oklch(0.92 0.01 260);
+  --secondary-foreground: oklch(0.25 0.02 260);
+  --muted: oklch(0.9 0.01 260);
+  --muted-foreground: oklch(0.45 0.02 260);
+  --accent: oklch(0.78 0.15 85);
+  --accent-foreground: oklch(0.15 0.02 260);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.82 0.01 260);
+  --input: oklch(0.92 0.01 260);
+  --ring: oklch(0.75 0.14 85);
+  --chart-1: oklch(0.72 0.15 85);
+  --chart-2: oklch(0.68 0.12 45);
+  --chart-3: oklch(0.6 0.1 210);
+  --chart-4: oklch(0.55 0.1 270);
+  --chart-5: oklch(0.5 0.12 320);
+  --sidebar: oklch(0.95 0.01 95);
+  --sidebar-foreground: oklch(0.2 0.02 260);
+  --sidebar-primary: oklch(0.75 0.14 85);
+  --sidebar-primary-foreground: oklch(0.15 0.02 260);
+  --sidebar-accent: oklch(0.9 0.01 260);
+  --sidebar-accent-foreground: oklch(0.25 0.02 260);
+  --sidebar-border: oklch(0.8 0.01 260);
+  --sidebar-ring: oklch(0.75 0.14 85);
+  --lunar-glow: oklch(0.82 0.16 85);
+  --lunar-surface: oklch(0.92 0.01 260);
+  --star-bright: oklch(0.95 0.03 90);
+}
+
 @theme inline {
   /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
   --font-sans: "Inter", "Inter Fallback", system-ui, sans-serif;
@@ -180,4 +219,8 @@
 
 .animate-float {
   animation: float 6s ease-in-out infinite;
+}
+
+html, body {
+  transition: background-color 0.35s ease, color 0.35s ease;
 }
