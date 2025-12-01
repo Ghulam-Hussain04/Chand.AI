@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 # --- Function to describe location in user-friendly terms ---
 def describe_location(x, y, w, h, img_width, img_height):
@@ -27,3 +28,4 @@ def describe_location(x, y, w, h, img_width, img_height):
         vert = "bottom"
     
     return f"{vert}-{horiz}"
+
