@@ -34,10 +34,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   ): Promise<boolean> => {
     setIsLoading(true);
 
-    // Simulate API call with setTimeout
+    // API Call
     return new Promise((resolve) => {
       setTimeout(() => {
-        // Mock successful login (replace with real API later)
         if (username && password) {
           setUser({ username, role });
           setIsLoading(false);

@@ -8,6 +8,7 @@ import ChatSidebar from "../components/ChatSidebar";
 import ChatHeader from "../components/ChatHeader";
 import ChatDisplay, { type Message } from "../components/ChatDisplay";
 import ChatBox from "../components/ChatBox";
+import ChatImagesBar from "../components/ChatImagesBar";
 
 interface ChatSession {
   id: string;
@@ -20,6 +21,7 @@ export default function ChatPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  //dummy chat sessions
   const [sessions, setSessions] = useState<ChatSession[]>([
     {
       id: "1",
@@ -138,7 +140,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-screen flex bg-background">
+    <div className="h-screen flex bg-background relative">
       {/* Sidebar */}
       <ChatSidebar
         sessions={sessions.map((s) => ({
@@ -161,6 +163,8 @@ export default function ChatPage() {
         />
         <ChatBox onSendMessage={handleSendMessage} isLoading={isLoading} />
       </div>
+
+      <ChatImagesBar images={[]} />
     </div>
   );
 }
