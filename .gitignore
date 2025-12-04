@@ -1,7 +1,7 @@
 .env
 __pycache__/
-.venv/
-venv/
+.terra_venv/
+terra_venv/
 
 __pycache__/
 *.pyc
@@ -10,4 +10,5 @@ __pycache__/
 
 # Ignore local file storage
 storage/
-storage/**
+storage/*
+!storage/.gitkeep
