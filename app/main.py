@@ -33,3 +33,4 @@ async def upload_and_vectorize(file:UploadFile=File(...)):
         
     except Exception as e:
         return {"detail": "sorry something went wrong", "error": str(e)}
+    
