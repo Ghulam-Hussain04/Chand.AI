@@ -2,7 +2,7 @@ import os ,json , re
 from typing import List
 from PyPDF2 import PdfReader
 from langchain.schema import Document
-from llm_client import ask
+from app.llm_client import ask
 import tiktoken
 
 

@@ -1,12 +1,9 @@
-from fastapi import FastAPI , UploadFile , File , HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from utils.upload_document_utils import process_single_file
-from utils.chroma_utils import add_docs_to_chroma , setup_bm25_retriever
-import os
+from fastapi import FastAPI
+from app.routes import auth, chats, files, rag
 
+app = FastAPI(title="TerraBot API")
 
-app = FastAPI()
-pdf_folder="docs"
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,21 +13,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/upload_and_vectorize")
-async def upload_and_vectorize(file:UploadFile=File(...)):
-    try:
-        file_path=os.path.join(pdf_folder, file.filename)
-        if os.path.exists(file_path):
-            return {"detail":f"File {file.filename} already exists."}
-        with open(file_path,"wb") as f:
-            f.write(await file.read())
-            
-        chunks=process_single_file(file_path)
-        add_docs_to_chroma(chunks)
-        setup_bm25_retriever(chunks)
-        return {"detail":f"Successfully vectorized {file.filename}","chunks_added":len(chunks),"docs":chunks}
-    
-        
-    except Exception as e:
-        return {"detail": "sorry something went wrong", "error": str(e)}
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+app.include_router(chats.router, prefix="/chats", tags=["Chats"])
+app.include_router(files.router, prefix="/files", tags=["Files"])
+app.include_router(rag.router, prefix="/rag", tags=["RAG"])
+
+
     
