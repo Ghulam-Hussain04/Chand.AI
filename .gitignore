@@ -3,7 +3,6 @@ __pycache__/
 .terra_venv/
 terra_venv/
 
-__pycache__/
 *.pyc
 .DS_Store
 .idea/
