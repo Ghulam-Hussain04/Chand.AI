@@ -1,0 +1,24 @@
+from groq import Groq
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+def ask(prompt:str)->str:
+    client=Groq(api_key=GROQ_API_KEY)
+    completion = client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_completion_tokens=8192,
+            reasoning_effort="medium",
+            top_p=1,
+            stream=True,
+            stop=None
+        )
+    full_response = ""
+    for chunk in completion:
+        if chunk.choices[0].delta.content:
+            full_response += chunk.choices[0].delta.content
+    
+    return full_response
