@@ -2,41 +2,60 @@ import os ,json , re
 from typing import List
 from PyPDF2 import PdfReader
 from langchain.schema import Document
-from llm_client import ask
+from transformers import AutoTokenizer
+from app.llm_client import ask
 import tiktoken
 
+tokenizer=AutoTokenizer.from_pretrained("sshleifer/distilbart-cnn-12-6")
 
+# def split_into_safe_chunks(text: str, max_tokens: int = 6000) -> list[str]:
+#     # Use GPT-4 tokenizer (works for most models)
+#     enc = tiktoken.get_encoding("cl100k_base")
 
-def split_into_safe_chunks(text: str, max_tokens: int = 6000) -> list[str]:
-    # Use GPT-4 tokenizer (works for most models)
+#     # Normalize spacing
+#     text = text.replace("\r", "").strip()
+
+#     # Split into paragraphs
+#     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+
+#     chunks = []
+#     current_chunk = ""
+
+#     for para in paragraphs:
+#         para_tokens = len(enc.encode(para))
+#         chunk_tokens = len(enc.encode(current_chunk))
+
+#         # If adding this paragraph exceeds the limit -> start new chunk
+#         if chunk_tokens + para_tokens > max_tokens:
+#             if current_chunk.strip():
+#                 chunks.append(current_chunk.strip())
+#             current_chunk = para + "\n\n"
+#         else:
+#             current_chunk += para + "\n\n"
+
+#     # Add last chunk
+#     if current_chunk.strip():
+#         chunks.append(current_chunk.strip())
+
+#     return chunks
+
+def split_into_safe_chunks(text: str, max_tokens=5000):
     enc = tiktoken.get_encoding("cl100k_base")
 
-    # Normalize spacing
-    text = text.replace("\r", "").strip()
-
-    # Split into paragraphs
-    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    tokens = enc.encode(text)
 
     chunks = []
-    current_chunk = ""
+    start = 0
 
-    for para in paragraphs:
-        para_tokens = len(enc.encode(para))
-        chunk_tokens = len(enc.encode(current_chunk))
-
-        # If adding this paragraph exceeds the limit -> start new chunk
-        if chunk_tokens + para_tokens > max_tokens:
-            if current_chunk.strip():
-                chunks.append(current_chunk.strip())
-            current_chunk = para + "\n\n"
-        else:
-            current_chunk += para + "\n\n"
-
-    # Add last chunk
-    if current_chunk.strip():
-        chunks.append(current_chunk.strip())
+    while start < len(tokens):
+        end = start + max_tokens
+        chunk_tokens = tokens[start:end]
+        chunk_text = enc.decode(chunk_tokens)
+        chunks.append(chunk_text)
+        start = end
 
     return chunks
+
 
 
 def extract_text_from_pdf(path:str)->str:
@@ -141,7 +160,7 @@ def insert_breakpoints_with_llm(document_text:str)->str:
 
     """
     answer=ask(prompt)
-    print("BreakPoints",answer)
+    # print("BreakPoints",answer)
     return answer
 
 
@@ -234,10 +253,16 @@ def process_single_file(pdf_path:str)->list[Document]:
     all_chunks=[]
     filename=os.path.basename(pdf_path)
     text=extract_text_from_pdf(pdf_path)
-    print(f"Extracted text: {text}")
+    # print(f"Extracted text: {text}")
+    enc = tiktoken.get_encoding("cl100k_base")
     chunks = split_into_safe_chunks(text, max_tokens=6000)
     for idx, chunk in enumerate(chunks):
-        print(f"Sending chunk {idx+1}/{len(raw_chunks)} to LLM...")
+        chunks_tokens=tokenizer.encode(chunk)
+        num_tokens=len(chunks_tokens)
+        print("num length: ",num_tokens)
+        chunk_tokens = len(enc.encode(chunk))
+        print("chunk length: ",chunk_tokens)
+        # print(f"Sending chunk {idx+1}/{len(chunk)} to LLM...")
         wrapped_text=f"<<FILE:{filename}>>\n{chunk}\n<<END_OF_FILE>>"
         llm_output=insert_breakpoints_with_llm(wrapped_text)
         final_chunks = parse_llm_chunks_lunar(llm_output, filename)
