@@ -39,6 +39,17 @@ tokenizer=AutoTokenizer.from_pretrained("sshleifer/distilbart-cnn-12-6")
 
 #     return chunks
 
+def sanitize_metadata(meta:dict)->dict:
+    safe={}
+    for key , val in meta.items():
+        if isinstance(val,(str,int,float,bool)) or val is None:
+            safe[key]=val
+        else:
+            safe[key]=json.dumps(val)
+            
+    return safe
+
+
 def split_into_safe_chunks(text: str, max_tokens=5000):
     enc = tiktoken.get_encoding("cl100k_base")
 
@@ -232,7 +243,7 @@ def parse_llm_chunks_lunar(llm_output: str, filename: str) -> List[Document]:
                 keywords.append(k)
 
         # Build metadata dict
-        metadata = {
+        raw_metadata = {
             "filename": filename,
             "chunk_id": idx,
             "section_title": section_title,
@@ -242,6 +253,7 @@ def parse_llm_chunks_lunar(llm_output: str, filename: str) -> List[Document]:
             "has_figures": has_figures,
             "keywords": keywords
         }
+        metadata=sanitize_metadata(raw_metadata)
 
         docs.append(Document(page_content=chunk_clean, metadata=metadata))
 
@@ -264,11 +276,10 @@ def process_single_file(pdf_path:str)->list[Document]:
         print("chunk length: ",chunk_tokens)
         # print(f"Sending chunk {idx+1}/{len(chunk)} to LLM...")
         wrapped_text=f"<<FILE:{filename}>>\n{chunk}\n<<END_OF_FILE>>"
-        llm_output=insert_breakpoints_with_llm(wrapped_text)
+        llm_output=insert_breakpoints_with_llm(wrapped_text) 
         final_chunks = parse_llm_chunks_lunar(llm_output, filename)
         all_chunks.extend(final_chunks)
 
-    
     
     
     return all_chunks
