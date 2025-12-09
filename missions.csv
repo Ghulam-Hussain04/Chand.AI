@@ -1,0 +1,2 @@
+mission_name,meters_per_pixel,camera_angle_deg,camera_resolution_w,camera_resolution_h,camera_fov_deg,rover_height_m,notes
+Chang3,0.5,15,1024,1024,45,1.5,"Lunar lander with Yutu rover, landed Dec 2013. Camera specs approximate."
