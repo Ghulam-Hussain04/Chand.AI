@@ -1,13 +1,14 @@
 .env
 __pycache__/
+**/__pycache__/
+*.pyc
 .terra_venv/
 terra_venv/
 
-*.pyc
+.vscode/
 .DS_Store
 .idea/
 
-# Ignore local file storage
-storage/
+# Ignore local file storage 
 storage/*
 !storage/.gitkeep
