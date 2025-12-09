@@ -3,7 +3,7 @@ from typing import List
 from PyPDF2 import PdfReader
 from langchain.schema import Document
 from transformers import AutoTokenizer
-from app.llm_client import ask
+from app.rag.llm_client import ask
 import tiktoken
 
 tokenizer=AutoTokenizer.from_pretrained("sshleifer/distilbart-cnn-12-6")

@@ -5,6 +5,9 @@ __pycache__/
 .terra_venv/
 terra_venv/
 
+.venv/
+venv/
+
 .vscode/
 .DS_Store
 .idea/
