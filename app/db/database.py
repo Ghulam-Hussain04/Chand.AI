@@ -36,10 +36,12 @@ class Image(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     path = Column(String(500), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
+    user = relationship("User", backref="images")
     chats = relationship("Chat", back_populates="image")
 
 # Chat_Sessions model

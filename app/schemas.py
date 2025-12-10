@@ -30,10 +30,16 @@ class LoginResponse(BaseModel):
 
 # Image schemas
 class ImageUploadResponse(BaseModel):
+    id: int
     filename: str
     mission_name: str
     path: str
+    user_id: int
+    description: Optional[str] = None
     created_at: str
+    
+    class Config:
+        from_attributes = True
 
 class DirectoryItem(BaseModel):
     name: str

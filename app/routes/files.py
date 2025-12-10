@@ -1,5 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Depends
 from fastapi.responses import FileResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import os
 from pathlib import Path
 from datetime import datetime
@@ -13,6 +15,7 @@ from app.schemas import (
 )
 from app.utils.image_manager import ImageManager
 from app.security import verify_token, verify_admin, TokenPayload
+from app.db.database import Image, get_db
 
 router = APIRouter()
 
@@ -21,14 +24,20 @@ router = APIRouter()
 async def upload_image(
     file: UploadFile = File(...),
     mission_name: str = Query(..., description="Mission name for organizing images"),
-    current_user: TokenPayload = Depends(verify_admin)
+    description: str = Query(None, description="Optional image description"),
+    current_user: TokenPayload = Depends(verify_admin),
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Upload an image file to storage/images/{mission_name}/
+    Upload an image file to storage/images/{mission_name}/ and store metadata in database.
     
     Parameters:
     - file: Image file to upload
     - mission_name: Name of the mission/folder to organize images
+    - description: Optional description of the image
+    
+    Returns:
+    - ImageUploadResponse with image metadata including database id
     """
     
     # Validate file
@@ -56,14 +65,29 @@ async def upload_image(
         with open(file_path, "wb") as f:
             f.write(contents)
         
-        # Return response
+        # Get relative path for URL
         relative_path = ImageManager.get_relative_path_for_url(file_path)
         
+        # Save metadata to database
+        now = datetime.utcnow()
+        image_record = Image(
+            path=relative_path,
+            user_id=current_user.user_id,
+            description=description,
+            created_at=now
+        )
+        db.add(image_record)
+        await db.commit()
+        await db.refresh(image_record)
+        
         return ImageUploadResponse(
+            id=image_record.id,
             filename=os.path.basename(file_path),
             mission_name=mission_name,
             path=relative_path,
-            created_at=datetime.utcnow().isoformat()
+            user_id=current_user.user_id,
+            description=description,
+            created_at=image_record.created_at.isoformat()
         )
     
     except Exception as e:
