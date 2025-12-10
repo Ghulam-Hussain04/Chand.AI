@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     JWT_EXP_MINUTES: int
     STORAGE_DIR: str
-    # GROQ_API_KEY: str
+    GROQ_API_KEY: str
 
     @property
     def STORAGE_PATH(self) -> str:

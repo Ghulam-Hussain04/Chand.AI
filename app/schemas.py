@@ -58,4 +58,9 @@ class FolderContents(BaseModel):
     current_path: str
     folders: List[DirectoryItem]
     images: List[ImageFileResponse]
+    
+# Rag schemas
+class AskRequest(BaseModel):
+    query:str
+    session_id:Optional[int]=None
 
