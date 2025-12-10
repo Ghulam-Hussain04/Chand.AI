@@ -1,0 +1,3 @@
+inference/models/*
+**__pycache__/
+!inference/models/scripts

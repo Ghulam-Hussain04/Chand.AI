@@ -62,3 +62,25 @@ class MissionDB:
 
 #         self.save()
 #         return True
+
+
+
+# ------------------------
+# USAGE
+    
+db = MissionDB()
+
+# Chang'e 3 mission data
+change3_data = [
+    "Chang3",         # mission_name
+    0.5,              # meters_per_pixel
+    15,               # camera_angle_deg
+    1024,             # camera_resolution_w
+    1024,             # camera_resolution_h
+    45,               # camera_fov_deg
+    1.5,              # rover_height_m
+    "Lunar lander with Yutu rover, landed Dec 2013. Camera specs approximate."  # notes
+]
+
+# Add mission to CSV
+db.add_mission(change3_data)
