@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+import os
 
 class Settings(BaseSettings):
     DATABASE_URL: str
@@ -6,7 +7,12 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     JWT_EXP_MINUTES: int
     STORAGE_DIR: str
-    GROQ_API_KEY:str
+    # GROQ_API_KEY: str
+
+    @property
+    def STORAGE_PATH(self) -> str:
+        """Get the full storage path"""
+        return os.path.join(os.getcwd(), self.STORAGE_DIR)
 
     class Config:
         env_file = ".env"

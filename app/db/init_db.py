@@ -1,7 +1,7 @@
 """Database initialization script"""
 import asyncio
 from sqlalchemy import select
-from app.database import (
+from app.db.database import (
     engine, Base, AsyncSessionLocal, User, RoleEnum, 
     ChatSession, Chat, Image, InferenceCategoryEnum
 )

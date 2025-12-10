@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.database import get_db, User
+from app.db.database import get_db, User
 from app.schemas import UserRegister, UserLogin, LoginResponse, UserResponse
-from app.security import create_access_token, hash_password, verify_password
+from app.security import create_access_token, hash_password, verify_password, verify_admin, TokenPayload
 
 router = APIRouter()
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
-    """Register a new user"""
+async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db), current_user: TokenPayload = Depends(verify_admin)):
+    """Register a new user - ADMIN ONLY
+    
+    This endpoint requires admin authentication token.
+    Only users with admin role can register new users.
+    """
     
     # Check if username already exists
     result = await db.execute(
