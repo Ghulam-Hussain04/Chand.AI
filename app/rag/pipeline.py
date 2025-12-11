@@ -134,6 +134,11 @@ async def ask_llm(query: str, db: AsyncSession, session_id: str = None, user_id:
                 INSTRUCTIONS TO THE MODEL
                 =========================
 
+                - ONLY answer questions related to **lunar terrain**, **soil/rock analysis**, **geology**, or definitions provided in RETRIEVED_TEXT.
+                - If the user asks anything irrelevant, unsafe, or outside the lunar-analysis domain
+                (such as love stories, violence, bombs, hacking, money laundering, personal advice, or unrelated topics),
+                reply strictly with: **"I can only answer questions about lunar terrain analysis."**
+
                 - For questions about the IMAGE, describe **what the terrain looks like** based on CNN_FEATURES_CLEAN.
                 - You may interpret the features to provide natural, geologically plausible descriptions (e.g., absence of craters, presence of boulders, erosion effects) without inventing unobserved features.
                 - For conceptual or definition questions, use RETRIEVED_TEXT only.
@@ -144,8 +149,8 @@ async def ask_llm(query: str, db: AsyncSession, session_id: str = None, user_id:
                 OUTPUT RULES
                 =========================
 
-                - Provide a **concise, natural answer** (1–2 sentences) if the question does not requires explanation.
-                - Provide a **detailed natural answer** (5-7 sentences) if the question requires explanation.
+                - Provide a **concise, natural answer** (1–2 sentences) if the question does not require explanation.
+                - Provide a **detailed natural answer** (5–7 sentences) if the question requires explanation.
                 - Do **not** mention CNN_FEATURES or RETRIEVED_DOCS.
                 - Do **not** repeat the question or explain your reasoning.
 
@@ -167,6 +172,7 @@ async def ask_llm(query: str, db: AsyncSession, session_id: str = None, user_id:
                 =========================
                 Provide the concise natural-language answer only.
                 """
+
     answer = ask(prompt)              
     if session_id is None:
         new_session=ChatSession(
