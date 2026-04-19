@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.db.database import get_db, User
+from app.db.database import get_db, User, RoleEnum
 from app.schemas import UserRegister, UserLogin, LoginResponse, UserResponse
 from app.security import create_access_token, hash_password, verify_password, verify_admin, TokenPayload
 
@@ -13,7 +13,15 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db), 
     
     This endpoint requires admin authentication token.
     Only users with admin role can register new users.
+    Admin can create users with roles: 'user' or 'researcher'
     """
+    
+    # Validate role - only allow admin to create users with specific roles
+    if user_data.role not in [RoleEnum.user, RoleEnum.researcher]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Allowed roles: {[r.value for r in [RoleEnum.user, RoleEnum.researcher]]}"
+        )
     
     # Check if username already exists
     result = await db.execute(
