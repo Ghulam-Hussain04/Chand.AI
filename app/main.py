@@ -1,9 +1,12 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from app.routes import auth, chats, files, rag
+from app.routes import auth, chats, files, rag, folders, upload
 
-app = FastAPI(title="TerraBot API")
-
+app = FastAPI(
+    title="TerraBot Backend API",
+    description="Modular RAG + File Management Backend",
+    version="2.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -13,10 +16,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/auth", tags=["Auth"])
+# Include routers - Auth first, then core functionality
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+app.include_router(folders.router, tags=["Folders"])
+app.include_router(upload.router, tags=["Files"])
 app.include_router(chats.router, prefix="/chats", tags=["Chats"])
-app.include_router(files.router, prefix="/files", tags=["Files"])
 app.include_router(rag.router, prefix="/rag", tags=["RAG"])
+
+@app.get("/", tags=["Health"])
+async def root():
+    """API health check"""
+    return {
+        "message": "TerraBot Backend API v2.0.0 Running",
+        "features": ["File Management", "RAG Pipeline", "Image Processing"]
+    }
+
+@app.get("/health", tags=["Health"])
+async def health_check():
+    """Detailed health check"""
+    return {
+        "status": "healthy",
+        "version": "2.0.0"
+    }
 
 
     
