@@ -75,10 +75,9 @@ class ApiService {
   }
 
   async updateFolder(folderId: number, name: string, description: string | null = null) {
-    const response = await this.client.put(`/api/folders/${folderId}`, {
-      name,
-      description,
-    });
+    const params: Record<string, string> = { name };
+    if (description !== null) params.description = description;
+    const response = await this.client.put(`/api/folders/${folderId}`, null, { params });
     return response.data;
   }
 
@@ -120,7 +119,7 @@ class ApiService {
   }
 
   async getFiles(folderId?: number) {
-    const url = folderId ? `/api/files?folder_id=${folderId}` : '/api/files';
+    const url = folderId ? `/api/files/folder/${folderId}` : '/api/files';
     const response = await this.client.get(url);
     return response.data;
   }
@@ -184,6 +183,39 @@ class ApiService {
     const response = await this.client.post('/rag/sessions', {
       file_ids: fileIds,
     });
+    return response.data;
+  }
+
+  // Admin: User management
+  async getUsers() {
+    const response = await this.client.get('/admin/users');
+    return response.data;
+  }
+
+  // Uses /auth/register which is admin-only per API spec
+  async createUser(username: string, email: string, password: string, role: string) {
+    const response = await this.client.post('/auth/register', {
+      username,
+      email,
+      password,
+      role,
+    });
+    return response.data;
+  }
+
+  async updateUser(userId: number, data: { role?: string }) {
+    const response = await this.client.put(`/admin/users/${userId}`, data);
+    return response.data;
+  }
+
+  async deleteUser(userId: number) {
+    const response = await this.client.delete(`/admin/users/${userId}`);
+    return response.data;
+  }
+
+  // File stats for the current user
+  async getUserFileStats() {
+    const response = await this.client.get('/api/files/stats/user');
     return response.data;
   }
 }

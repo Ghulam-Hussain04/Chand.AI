@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useAuthStore } from '@/app/stores/authStore';
-import { useAppStore } from '@/app/stores/appStore';
-import { ThemeToggle } from '@/app/components/ThemeToggle';
-import { Input } from '@/app/components/ui/input';
-import { Button } from '@/app/components/ui/button';
-import { Search, Upload, Plus } from 'lucide-react';
+import { useAuthStore } from "@/app/stores/authStore";
+import { useAppStore } from "@/app/stores/appStore";
+import ThemeToggle from "@/app/components/ThemeToggle";
+import { Input } from "@/app/components/ui/input";
+import { Button } from "@/app/components/ui/button";
+import { Search, Upload, Plus } from "lucide-react";
 
 export default function Header() {
   const { user } = useAuthStore();

@@ -3,11 +3,13 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/app/stores/authStore';
+import { isAdmin } from '@/app/lib/rbac';
 import Sidebar from '@/app/components/Sidebar';
 import Header from '@/app/components/Header';
 import { Toaster } from 'sonner';
+import { toast } from 'sonner';
 
-export default function ChatLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -16,12 +18,20 @@ export default function ChatLayout({
   const { user, token } = useAuthStore();
 
   useEffect(() => {
+    // Check authentication
     if (!token || !user) {
       router.push('/auth/login');
+      return;
+    }
+
+    // Check authorization - only admins
+    if (!isAdmin(user.role)) {
+      toast.error('Access denied. Admin only.');
+      router.push('/dashboard');
     }
   }, [token, user, router]);
 
-  if (!token || !user) {
+  if (!token || !user || !isAdmin(user.role)) {
     return null;
   }
 

@@ -232,6 +232,17 @@
   }
 }
 
+@keyframes shoot {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(400px, 400px, 0);
+  }
+}
+
 .animate-twinkle {
   animation: twinkle 3s ease-in-out infinite;
 }
@@ -250,5 +261,7 @@
 
 html,
 body {
-  transition: background-color 0.35s ease, color 0.35s ease;
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
 }

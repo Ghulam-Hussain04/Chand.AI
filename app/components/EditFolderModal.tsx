@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { apiService } from '@/app/services/apiService';
+import { Folder as FolderType } from '@/app/stores/appStore';
 import {
   Dialog,
   DialogContent,
@@ -15,16 +16,15 @@ import { Label } from '@/app/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface CreateFolderModalProps {
-  isOpen: boolean;
+interface EditFolderModalProps {
+  folder: FolderType;
   onClose: () => void;
-  onSuccess?: () => void;
-  parentId?: number | null;
+  onSuccess: () => void;
 }
 
-export default function CreateFolderModal({ isOpen, onClose, onSuccess, parentId = null }: CreateFolderModalProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+export default function EditFolderModal({ folder, onClose, onSuccess }: EditFolderModalProps) {
+  const [name, setName] = useState(folder.name);
+  const [description, setDescription] = useState(folder.description || '');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,14 +37,11 @@ export default function CreateFolderModal({ isOpen, onClose, onSuccess, parentId
 
     setIsLoading(true);
     try {
-      await apiService.createFolder(name, description || null, parentId);
-      toast.success('Folder created successfully');
-      setName('');
-      setDescription('');
-      onSuccess?.();
-      onClose();
+      await apiService.updateFolder(folder.id, name, description || null);
+      toast.success('Folder updated successfully');
+      onSuccess();
     } catch (error) {
-      toast.error('Failed to create folder');
+      toast.error('Failed to update folder');
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -52,67 +49,61 @@ export default function CreateFolderModal({ isOpen, onClose, onSuccess, parentId
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-800/50 border-slate-700">
+    <Dialog open={true} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[425px] bg-slate-800 border-slate-700">
         <DialogHeader>
-          <DialogTitle className="text-white">Create New Folder</DialogTitle>
+          <DialogTitle className="text-white">Edit Project</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Create a new folder to organize your documents
+            Update the project details
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="name" className="text-slate-200">
-              Folder Name *
+              Project Name
             </Label>
             <Input
               id="name"
-              placeholder="My Documents"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="Enter project name"
+              className="mt-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400"
               disabled={isLoading}
-              className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
             />
           </div>
 
           <div>
             <Label htmlFor="description" className="text-slate-200">
-              Description
+              Description (Optional)
             </Label>
             <Input
               id="description"
-              placeholder="Optional folder description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="Enter project description"
+              className="mt-1 bg-slate-700 border-slate-600 text-white placeholder-slate-400"
               disabled={isLoading}
-              className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
             />
           </div>
 
-          <div className="flex gap-2 justify-end pt-4">
+          <div className="flex gap-2 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
+              className="flex-1 border-slate-600 text-slate-200 hover:bg-slate-700"
               disabled={isLoading}
-              className="border-slate-600 text-slate-200"
             >
               Cancel
             </Button>
             <Button
               type="submit"
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
               disabled={isLoading}
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create Folder'
-              )}
+              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isLoading ? 'Updating...' : 'Update'}
             </Button>
           </div>
         </form>
