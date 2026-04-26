@@ -7,7 +7,7 @@ from app.security import verify_token, TokenPayload
 from app.schemas import FolderResponse, FolderCreate, FolderWithContents
 from app.services import FolderService
 
-router = APIRouter(prefix="/api/folders", tags=["folders"])
+router = APIRouter()
 
 def get_current_user(token: TokenPayload = Depends(verify_token)) -> TokenPayload:
     """Get current authenticated user"""

@@ -13,7 +13,7 @@ import time
 import os
 
  
-router = APIRouter(prefix="/rag", tags=["RAG"])
+router = APIRouter()
 
 pdf_folder = "docs"
 
