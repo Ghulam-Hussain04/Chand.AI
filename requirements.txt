@@ -6,6 +6,8 @@ python-multipart
 passlib[bcrypt]
 pydantic[email]
 argon2-cffi
+aiofiles
+Pillow
 PyPDF2
 pydantic_settings
 sqlalchemy
