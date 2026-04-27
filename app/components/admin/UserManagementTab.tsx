@@ -8,6 +8,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Loader2, Trash2, Edit2, Plus } from 'lucide-react';
 import { getRoleDisplayName, getAvailableRoles, Role } from '@/app/lib/rbac';
+import { inputBase, roleBadge } from '@/app/lib/theme';
 import CreateUserModal from '@/app/components/admin/CreateUserModal';
 import EditUserModal from '@/app/components/admin/EditUserModal';
 
@@ -92,10 +93,10 @@ export default function UserManagementTab() {
 
         {/* Search */}
         <Input
-          placeholder="Search by username or email..."
+          placeholder="Search by username or email…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="bg-slate-700 border-slate-600 text-white placeholder-slate-400"
+          className={inputBase}
         />
 
         {/* Users Table */}
@@ -127,7 +128,7 @@ export default function UserManagementTab() {
                         <td className="py-3 px-4 text-white">{user.username}</td>
                         <td className="py-3 px-4 text-slate-300">{user.email}</td>
                         <td className="py-3 px-4">
-                          <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-blue-600/20 text-blue-300">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${roleBadge[user.role] ?? 'bg-slate-700/50 text-slate-300'}`}>
                             {getRoleDisplayName(user.role as Role)}
                           </span>
                         </td>

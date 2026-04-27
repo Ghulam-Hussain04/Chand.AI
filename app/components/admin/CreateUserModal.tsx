@@ -30,7 +30,8 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess }: CreateUs
     role: 'user' as Role,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const roles = getAvailableRoles();
+  // Backend only allows creating users with role 'user' or 'researcher'
+  const roles = getAvailableRoles().filter((r) => r.value !== 'admin');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

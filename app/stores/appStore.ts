@@ -1,20 +1,28 @@
 import { create } from 'zustand';
 
 export interface FileMetadata {
-  [key: string]: any;
+  width?: number;
+  height?: number;
+  image_features?: Record<string, any>;
+  csv_columns?: string[];
+  csv_row_count?: number;
+  custom_metadata?: Record<string, any>;
 }
 
+/** Matches the backend FileResponse schema */
 export interface File {
   id: number;
-  filename: string;
-  file_type: string;
-  size: number;
-  folder_id: number | null;
+  filename: string;           // generated/stored filename
+  original_filename: string;  // original name as uploaded
+  file_type: string;          // 'image' | 'csv'
+  file_size: number;          // bytes
+  folder_id: number;
   description: string | null;
   tags: string[];
+  is_processed: boolean;
   created_at: string;
   updated_at: string;
-  metadata: FileMetadata;
+  metadata: FileMetadata | null;
 }
 
 export interface Folder {
@@ -24,6 +32,7 @@ export interface Folder {
   parent_id: number | null;
   created_at: string;
   updated_at: string;
+  file_count?: number;
   children?: Folder[];
   files?: File[];
 }
@@ -40,7 +49,8 @@ export interface AppState {
   // Folder Management
   folders: Folder[];
   selectedFolderId: number | null;
-  folderHierarchy: Folder | null;
+  /** Array of root folder trees returned by GET /api/folders/hierarchy */
+  folderHierarchy: Folder[] | null;
 
   // File Management
   files: File[];
@@ -58,7 +68,7 @@ export interface AppState {
   // Actions
   setFolders: (folders: Folder[]) => void;
   setSelectedFolderId: (id: number | null) => void;
-  setFolderHierarchy: (hierarchy: Folder | null) => void;
+  setFolderHierarchy: (hierarchy: Folder[] | null) => void;
   setFiles: (files: File[]) => void;
   setSelectedFileIds: (ids: number[]) => void;
   toggleFileSelection: (id: number) => void;
@@ -96,9 +106,7 @@ export const useAppStore = create<AppState>((set) => ({
   setUploadProgress: (progress) => set({ uploadProgress: progress }),
   setChatMessages: (messages) => set({ chatMessages: messages }),
   addChatMessage: (message) =>
-    set((state) => ({
-      chatMessages: [...state.chatMessages, message],
-    })),
+    set((state) => ({ chatMessages: [...state.chatMessages, message] })),
   setIsLoading: (loading) => set({ isLoading: loading }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setSearchQuery: (query) => set({ searchQuery: query }),
