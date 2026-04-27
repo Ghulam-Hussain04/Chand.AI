@@ -15,7 +15,7 @@ from app.schemas import (
 from app.services import FileService, StorageService, FolderService
 from app.utils.image_processor import ImageProcessor
 
-router = APIRouter(prefix="/api/files", tags=["files"])
+router = APIRouter()
 
 def get_current_user(token: TokenPayload = Depends(verify_token)) -> TokenPayload:
     """Get current authenticated user"""

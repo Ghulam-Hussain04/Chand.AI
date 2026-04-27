@@ -18,7 +18,7 @@ app.add_middleware(
 
 # Include routers - Auth first, then core functionality
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-app.include_router(folders.router,prefix="/api/folder", tags=["Folders"])
+app.include_router(folders.router,prefix="/api/folders", tags=["Folders"])
 app.include_router(upload.router,prefix="/api/files", tags=["Files"])
 app.include_router(chats.router, prefix="/chats", tags=["Chats"])
 app.include_router(rag.router, prefix="/rag", tags=["RAG"])
