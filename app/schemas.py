@@ -141,6 +141,12 @@ class FolderContents(BaseModel):
     folders: List[DirectoryItem]
     images: List[ImageFileResponse]
 
+# ==================== File Update Schema ====================
+
+class FileUpdateRequest(BaseModel):
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
 # ==================== RAG Schemas ====================
 
 class AskRequest(BaseModel):

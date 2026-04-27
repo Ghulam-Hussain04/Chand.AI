@@ -169,9 +169,28 @@ class FolderService:
             "created_at": folder.created_at,
             "updated_at": folder.updated_at,
             "file_count": file_count,
-            "subfolders": children
+            "children": children
         }
     
+    @staticmethod
+    async def get_user_folder_trees(
+        db: AsyncSession,
+        user_id: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Get full hierarchy trees for all root folders owned by the user.
+
+        Returns:
+            List of folder trees (each tree uses the 'children' key for nesting)
+        """
+        root_folders = await FolderService.get_user_root_folders(db, user_id)
+        trees = []
+        for folder in root_folders:
+            tree = await FolderService.get_folder_hierarchy(db, folder.id, user_id)
+            if tree:
+                trees.append(tree)
+        return trees
+
     @staticmethod
     async def update_folder(
         db: AsyncSession,

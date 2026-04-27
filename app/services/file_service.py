@@ -137,6 +137,22 @@ class FileService:
         return result.scalars().all()
     
     @staticmethod
+    async def get_all_user_files(
+        db: AsyncSession,
+        user_id: int
+    ) -> List[File]:
+        """
+        Get all files owned by the user across all folders.
+
+        Returns:
+            List of files ordered by most recently created
+        """
+        result = await db.execute(
+            select(File).where(File.user_id == user_id).order_by(File.created_at.desc())
+        )
+        return result.scalars().all()
+
+    @staticmethod
     async def search_files(
         db: AsyncSession,
         user_id: int,

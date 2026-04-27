@@ -1,6 +1,6 @@
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from app.routes import auth, chats, files, rag, folders, upload
+from app.routes import auth, chats, files, rag, folders, upload, admin
 
 app = FastAPI(
     title="TerraBot Backend API",
@@ -22,6 +22,7 @@ app.include_router(folders.router,prefix="/api/folders", tags=["Folders"])
 app.include_router(upload.router,prefix="/api/files", tags=["Files"])
 app.include_router(chats.router, prefix="/chats", tags=["Chats"])
 app.include_router(rag.router, prefix="/rag", tags=["RAG"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 
 @app.get("/", tags=["Health"])
 async def root():

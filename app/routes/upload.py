@@ -7,10 +7,11 @@ import os
 from app.db.database import get_db, User
 from app.security import verify_token, TokenPayload
 from app.schemas import (
-    FileResponse as FileResponseSchema, 
-    FileCreate, 
+    FileResponse as FileResponseSchema,
+    FileCreate,
     FileUploadResponse,
-    FileBatchUploadResponse
+    FileBatchUploadResponse,
+    FileUpdateRequest,
 )
 from app.services import FileService, StorageService, FolderService
 from app.utils.image_processor import ImageProcessor
@@ -253,6 +254,16 @@ async def upload_batch(
         total_size=total_size
     )
 
+@router.get("", response_model=List[FileResponseSchema])
+async def list_all_user_files(
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Get all files for the current user across all folders"""
+    files = await FileService.get_all_user_files(db, current_user.user_id)
+    return files
+
+
 @router.get("/{file_id}", response_model=FileResponseSchema)
 async def get_file(
     file_id: int,
@@ -408,29 +419,17 @@ async def search_files(
 @router.put("/{file_id}")
 async def update_file(
     file_id: int,
-    description: Optional[str] = None,
-    tags: Optional[str] = None,
+    data: FileUpdateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user)
+    current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Update file metadata
-    
-    Args:
-        file_id: File ID
-        description: New description
-        tags: Comma-separated tags
-        
-    Returns:
-        Updated file
-    """
-    tags_list = [t.strip() for t in tags.split(',')] if tags else None
-    
+    """Update file metadata (description and/or tags)"""
     file = await FileService.update_file_metadata(
         db=db,
         file_id=file_id,
         user_id=current_user.user_id,
-        description=description,
-        tags=tags_list
+        description=data.description,
+        tags=data.tags,
     )
     
     if not file:

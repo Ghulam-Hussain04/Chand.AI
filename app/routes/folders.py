@@ -42,6 +42,16 @@ async def create_folder(
             detail=str(e)
         )
 
+@router.get("/hierarchy")
+async def get_root_hierarchy(
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user)
+):
+    """Get complete hierarchy trees for all root folders owned by the current user"""
+    trees = await FolderService.get_user_folder_trees(db, current_user.user_id)
+    return trees
+
+
 @router.get("/{folder_id}", response_model=FolderResponse)
 async def get_folder(
     folder_id: int,
