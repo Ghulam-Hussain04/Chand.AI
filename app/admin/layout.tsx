@@ -9,31 +9,27 @@ import Header from '@/app/components/Header';
 import { Toaster } from 'sonner';
 import { toast } from 'sonner';
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user, token, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    // Check authentication
+    if (!_hasHydrated) return;
     if (!token || !user) {
       router.push('/auth/login');
       return;
     }
-
-    // Check authorization - only admins
     if (!isAdmin(user.role)) {
       toast.error('Access denied. Admin only.');
       router.push('/dashboard');
     }
-  }, [token, user, router]);
+  }, [token, user, router, _hasHydrated]);
 
-  if (!token || !user || !isAdmin(user.role)) {
-    return null;
+  if (!_hasHydrated) {
+    return <div className="h-screen bg-slate-950" />;
   }
+
+  if (!token || !user || !isAdmin(user.role)) return null;
 
   return (
     <div className="h-screen flex bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-foreground">
@@ -41,9 +37,7 @@ export default function AdminLayout({
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-auto">
-          <div className="h-full">
-            {children}
-          </div>
+          <div className="h-full">{children}</div>
         </main>
       </div>
       <Toaster />

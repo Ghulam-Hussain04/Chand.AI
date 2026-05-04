@@ -57,7 +57,7 @@ export default function LoginPage() {
         <Card className="border-slate-700 bg-slate-900/50 backdrop-blur">
           <CardHeader className="space-y-2 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
                 <LogIn className="w-6 h-6 text-white" />
               </div>
             </div>
@@ -105,7 +105,7 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-medium"
               >
                 {isLoading ? (
                   <>
@@ -130,7 +130,7 @@ export default function LoginPage() {
 
         <p className="text-center text-slate-400 text-sm mt-4">
           Don&apos;t have an account?{' '}
-          <Link href="/auth/signup" className="text-blue-400 hover:text-blue-300 font-medium">
+          <Link href="/auth/signup" className="text-amber-400 hover:text-amber-300 font-medium">
             Sign up
           </Link>
         </p>

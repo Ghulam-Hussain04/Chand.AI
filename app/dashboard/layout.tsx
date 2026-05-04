@@ -8,23 +8,21 @@ import Header from '@/app/components/Header';
 import { Toaster } from 'sonner';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { user, token } = useAuthStore();
+  const { user, token, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
-    if (!token || !user) {
+    if (_hasHydrated && (!token || !user)) {
       router.push('/auth/login');
     }
-  }, [token, user, router]);
+  }, [token, user, router, _hasHydrated]);
 
-  if (!token || !user) {
-    return null;
+  if (!_hasHydrated) {
+    return <div className="h-screen bg-slate-950" />;
   }
+
+  if (!token || !user) return null;
 
   return (
     <ProtectedRoute>
@@ -32,11 +30,7 @@ export default function DashboardLayout({
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-auto">
-            <div className="h-full">
-              {children}
-            </div>
-          </main>
+          <main className="flex-1 overflow-auto">{children}</main>
         </div>
         <Toaster />
       </div>

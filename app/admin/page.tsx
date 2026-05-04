@@ -202,7 +202,7 @@ function SettingsTab() {
         </div>
 
         <div className="pt-4">
-          <Button className="bg-blue-600 hover:bg-blue-700">Save Settings</Button>
+          <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black">Save Settings</Button>
         </div>
       </CardContent>
     </Card>

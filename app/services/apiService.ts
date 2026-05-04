@@ -153,6 +153,17 @@ class ApiService {
     return response.data;
   }
 
+  async getThumbnail(fileId: number): Promise<string | null> {
+    try {
+      const response = await this.client.get(`/api/files/thumbnail/${fileId}`, {
+        responseType: 'blob',
+      });
+      return URL.createObjectURL(response.data);
+    } catch {
+      return null;
+    }
+  }
+
   /** query param must be `query=` (not `q=`) */
   async searchFiles(query: string, fileType?: string, folderId?: number) {
     const params: Record<string, string | number> = { query };

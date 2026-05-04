@@ -84,7 +84,7 @@ export default function UserManagementTab() {
           </div>
           <Button
             onClick={() => setCreateUserOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-medium flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add User
@@ -104,7 +104,7 @@ export default function UserManagementTab() {
           <CardContent className="pt-6">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
               </div>
             ) : filteredUsers.length === 0 ? (
               <div className="text-center py-8 text-slate-400">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAppStore, File as FileType } from '@/app/stores/appStore';
 import { useAuthStore } from '@/app/stores/authStore';
 import { apiService } from '@/app/services/apiService';
@@ -9,7 +9,6 @@ import { Card, CardContent } from '@/app/components/ui/card';
 import { Input } from '@/app/components/ui/input';
 import {
   FileText,
-  Image,
   Download,
   Trash2,
   Upload,
@@ -17,11 +16,16 @@ import {
   MessageCircle,
   Search,
   FolderOpen,
+  ChevronRight,
   ChevronDown,
+  Image as ImageIcon,
+  FolderPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { hasPermission } from '@/app/lib/rbac';
-import { card, inputBase, btn, badge, fileTypeBadge, text, bg, border } from '@/app/lib/theme';
+import { card, inputBase, btn, badge, fileTypeBadge, text } from '@/app/lib/theme';
+import NextImage from 'next/image';
+import CreateFolderModal from '@/app/components/CreateFolderModal';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -31,58 +35,110 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
+function ThumbnailImage({ fileId }: { fileId: number }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    apiService.getThumbnail(fileId).then((url) => {
+      objectUrl = url;
+      setSrc(url);
+    });
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileId]);
+
+  if (!src) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-700/30 rounded-lg">
+        <ImageIcon className="w-8 h-8 text-slate-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full">
+      <NextImage src={src} alt="" fill className="object-cover rounded-lg" unoptimized />
+    </div>
+  );
+}
+
 export default function DocumentsPage() {
   const { user } = useAuthStore();
-  const { files, setFiles, selectedFileIds, toggleFileSelection, uploadProgress, setUploadProgress } =
-    useAppStore();
+  const {
+    files, setFiles,
+    selectedFileIds, toggleFileSelection,
+    uploadProgress, setUploadProgress,
+    selectedFolderId, setSelectedFolderId,
+    folderHierarchy,
+  } = useAppStore();
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [folders, setFolders] = useState<any[]>([]);
-  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const [rootFolders, setRootFolders] = useState<any[]>([]);
+  const [subfolders, setSubfolders] = useState<any[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<{ id: number; name: string }[]>([]);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  const [createSubfolderParentId, setCreateSubfolderParentId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const canUpload = user && hasPermission(user.role, 'upload_file');
   const canDelete = user && hasPermission(user.role, 'delete_file');
+  const canCreateFolder = user && hasPermission(user.role, 'create_folder');
 
-  // Close folder dropdown on outside click
+  // Load root folders on mount
   useEffect(() => {
-    const handle = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setFolderDropdownOpen(false);
+    apiService.getFolders().then((folders) => {
+      setRootFolders(folders);
+      if (folders.length > 0 && selectedFolderId === null) {
+        setSelectedFolderId(folders[0].id);
+        setBreadcrumb([{ id: folders[0].id, name: folders[0].name }]);
       }
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
+    }).catch(() => toast.error('Failed to load projects'));
   }, []);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const [fetchedFiles, fetchedFolders] = await Promise.all([
-          apiService.getFiles(),
-          apiService.getFolders(),
-        ]);
-        setFiles(fetchedFiles);
-        setFolders(fetchedFolders);
-        if (fetchedFolders.length > 0 && selectedFolderId === null) {
-          setSelectedFolderId(fetchedFolders[0].id);
-        }
-      } catch {
-        toast.error('Failed to load files');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    init();
-  }, []);
+  // Load files + subfolders whenever selected folder changes
+  const loadFolderContents = useCallback(async (folderId: number) => {
+    setIsLoading(true);
+    try {
+      const [fetchedFiles, fetchedSubs] = await Promise.all([
+        apiService.getFolderFiles(folderId),
+        apiService.getSubfolders(folderId),
+      ]);
+      setFiles(fetchedFiles);
+      setSubfolders(fetchedSubs);
+    } catch {
+      toast.error('Failed to load folder contents');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setFiles]);
 
-  const reloadFiles = async () => {
-    const fetchedFiles = await apiService.getFiles();
-    setFiles(fetchedFiles);
+  useEffect(() => {
+    if (selectedFolderId !== null) {
+      loadFolderContents(selectedFolderId);
+    } else {
+      setFiles([]);
+      setSubfolders([]);
+    }
+  }, [selectedFolderId, loadFolderContents]);
+
+  const handleRootFolderSelect = (folder: any) => {
+    setSelectedFolderId(folder.id);
+    setBreadcrumb([{ id: folder.id, name: folder.name }]);
+  };
+
+  const handleSubfolderClick = (folder: any) => {
+    setSelectedFolderId(folder.id);
+    setBreadcrumb((prev) => [...prev, { id: folder.id, name: folder.name }]);
+  };
+
+  const handleBreadcrumbClick = (index: number) => {
+    const crumb = breadcrumb[index];
+    setBreadcrumb(breadcrumb.slice(0, index + 1));
+    setSelectedFolderId(crumb.id);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,7 +146,7 @@ export default function DocumentsPage() {
     if (!fileList || fileList.length === 0) return;
 
     if (!selectedFolderId) {
-      toast.error('Please select a project folder before uploading');
+      toast.error('Select a project folder before uploading');
       return;
     }
 
@@ -103,18 +159,17 @@ export default function DocumentsPage() {
         await apiService.uploadFile(fileList[i], selectedFolderId);
         successCount++;
       } catch (err: any) {
-        const msg = err?.response?.data?.detail || `Failed to upload ${fileList[i].name}`;
-        toast.error(msg);
+        toast.error(err?.response?.data?.detail || `Failed to upload ${fileList[i].name}`);
       }
     }
 
     setUploadProgress(0);
     setIsUploading(false);
-    if (fileList) (event.target as HTMLInputElement).value = '';
+    if (fileInputRef.current) fileInputRef.current.value = '';
 
     if (successCount > 0) {
       toast.success(`${successCount} file(s) uploaded`);
-      await reloadFiles();
+      loadFolderContents(selectedFolderId);
     }
   };
 
@@ -145,321 +200,357 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleChat = (fileId: number) => {
-    window.location.href = `/chat?fileId=${fileId}`;
-  };
-
-  const handleChatWithSelected = () => {
-    if (selectedFileIds.length === 0) return;
-    window.location.href = `/chat?fileId=${selectedFileIds[0]}`;
-  };
-
   const handleBulkDelete = async () => {
     if (!confirm(`Delete ${selectedFileIds.length} file(s)?`)) return;
     let deleted = 0;
     for (const id of selectedFileIds) {
-      try {
-        await apiService.deleteFile(id);
-        deleted++;
-      } catch {}
+      try { await apiService.deleteFile(id); deleted++; } catch {}
     }
     if (deleted > 0) {
       toast.success(`${deleted} file(s) deleted`);
-      await reloadFiles();
+      if (selectedFolderId) loadFolderContents(selectedFolderId);
     }
   };
 
-  // Filter displayed files
+  const handleFolderCreated = async () => {
+    setCreateFolderOpen(false);
+    setCreateSubfolderParentId(null);
+    if (selectedFolderId !== null) {
+      const subs = await apiService.getSubfolders(selectedFolderId).catch(() => []);
+      setSubfolders(subs);
+    }
+    const updated = await apiService.getFolders().catch(() => rootFolders);
+    setRootFolders(updated);
+    const trees = await apiService.getFolderHierarchy().catch(() => []);
+    useAppStore.getState().setFolderHierarchy(trees);
+  };
+
   const filteredFiles = files.filter((f) => {
-    const matchSearch =
-      !searchQuery ||
-      f.original_filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.description && f.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (f.tags && f.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase())));
-    return matchSearch;
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      f.original_filename.toLowerCase().includes(q) ||
+      (f.description && f.description.toLowerCase().includes(q)) ||
+      (f.tags && f.tags.some((t) => t.toLowerCase().includes(q)))
+    );
   });
 
-  const selectedFolder = folders.find((f) => f.id === selectedFolderId);
-
-  const FileIcon = ({ type }: { type: string }) =>
-    type === 'image' ? (
-      <Image className="w-5 h-5 text-blue-400" />
-    ) : (
-      <FileText className="w-5 h-5 text-green-400" />
-    );
+  const selectedFolder = rootFolders.find((f) => f.id === breadcrumb[0]?.id);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">My Files</h1>
-          <p className="text-slate-400 text-sm mt-1">Manage and organise your files</p>
+    <div className="flex h-full">
+      {/* ── Left panel: project list ───────────────────────────── */}
+      <aside className="w-56 flex-shrink-0 border-r border-slate-700 bg-slate-900/40 overflow-y-auto flex flex-col">
+        <div className="p-3 border-b border-slate-700 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projects</span>
+          {canCreateFolder && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0 hover:bg-amber-500/10 hover:text-amber-400"
+              onClick={() => { setCreateSubfolderParentId(null); setCreateFolderOpen(true); }}
+              title="New root project"
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+            </Button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Folder selector */}
-          {canUpload && (
-            <div className="relative" ref={dropdownRef}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-slate-600 text-slate-200 hover:bg-slate-700 gap-2 min-w-[150px] justify-between"
-                onClick={() => setFolderDropdownOpen((o) => !o)}
-              >
-                <span className="flex items-center gap-2 truncate">
+        <div className="flex-1 p-2 space-y-0.5">
+          {rootFolders.length === 0 ? (
+            <p className="text-xs text-slate-500 px-2 py-4 text-center">No projects yet</p>
+          ) : (
+            rootFolders.map((folder) => {
+              const isActive = breadcrumb[0]?.id === folder.id;
+              return (
+                <button
+                  key={folder.id}
+                  onClick={() => handleRootFolderSelect(folder)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                  }`}
+                >
                   <FolderOpen className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">
-                    {selectedFolder ? selectedFolder.name : 'Select folder'}
-                  </span>
-                </span>
-                <ChevronDown className="w-3 h-3 flex-shrink-0" />
-              </Button>
+                  <span className="truncate">{folder.name}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </aside>
 
-              {folderDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-52 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-                  {folders.length === 0 ? (
-                    <p className="px-4 py-3 text-sm text-slate-400">No folders yet</p>
-                  ) : (
-                    folders.map((folder) => (
-                      <button
-                        key={folder.id}
-                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-slate-700 transition ${
-                          selectedFolderId === folder.id ? 'text-blue-400' : 'text-slate-200'
-                        }`}
-                        onClick={() => {
-                          setSelectedFolderId(folder.id);
-                          setFolderDropdownOpen(false);
-                        }}
-                      >
-                        {folder.name}
-                      </button>
-                    ))
-                  )}
-                </div>
+      {/* ── Main content ───────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6 space-y-5">
+
+          {/* Header row */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              {/* Breadcrumb */}
+              <div className="flex items-center gap-1 text-sm">
+                <span className="text-slate-400">Files</span>
+                {breadcrumb.map((crumb, idx) => (
+                  <span key={crumb.id} className="flex items-center gap-1">
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+                    <button
+                      onClick={() => handleBreadcrumbClick(idx)}
+                      className={`hover:text-amber-400 transition ${
+                        idx === breadcrumb.length - 1 ? 'text-amber-300 font-medium' : 'text-slate-300'
+                      }`}
+                    >
+                      {crumb.name}
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <h1 className="text-xl font-bold text-white mt-0.5">
+                {breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].name : 'Select a project'}
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {canCreateFolder && selectedFolderId !== null && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-amber-500/10 hover:border-amber-500/50 hover:text-amber-300"
+                  onClick={() => { setCreateSubfolderParentId(selectedFolderId); setCreateFolderOpen(true); }}
+                >
+                  <FolderPlus className="w-4 h-4 mr-1.5" />
+                  Subfolder
+                </Button>
               )}
+
+              {canUpload && selectedFolderId !== null && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    accept=".jpg,.jpeg,.png,.csv"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={btn.primary}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {uploadProgress}%
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Search */}
+          {selectedFolderId !== null && (
+            <div className="relative max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                placeholder="Search files…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`pl-10 ${inputBase}`}
+              />
             </div>
           )}
 
-          {/* Upload button */}
-          {canUpload && (
-            <label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                disabled={isUploading || !selectedFolderId}
-                className="hidden"
-                accept=".jpg,.jpeg,.png,.csv"
-              />
-              <Button
-                asChild
-                size="sm"
-                disabled={isUploading || !selectedFolderId}
-                className={`${btn.primary} cursor-pointer`}
-                title={!selectedFolderId ? 'Select a project folder first' : undefined}
-              >
-                <span>
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {uploadProgress}%
-                    </>
-                  ) : (
-                    <>
+          {/* No project selected */}
+          {selectedFolderId === null && (
+            <Card className={`${card} border-dashed`}>
+              <CardContent className="p-12 text-center">
+                <FolderOpen className="w-12 h-12 text-amber-500/40 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-slate-200 mb-2">Select a project</h3>
+                <p className="text-slate-400 text-sm">Choose a project from the left panel to view its files.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loading */}
+          {selectedFolderId !== null && isLoading && (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="w-8 h-8 animate-spin text-amber-500/60" />
+            </div>
+          )}
+
+          {/* Subfolders */}
+          {!isLoading && subfolders.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Subfolders</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {subfolders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    onClick={() => handleSubfolderClick(folder)}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/60 border border-slate-700 hover:border-amber-500/40 hover:bg-amber-500/5 transition text-left group"
+                  >
+                    <FolderOpen className="w-5 h-5 text-amber-400/70 flex-shrink-0 group-hover:text-amber-400" />
+                    <span className="text-sm text-slate-300 truncate group-hover:text-white">{folder.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Files grid */}
+          {!isLoading && selectedFolderId !== null && (
+            filteredFiles.length > 0 ? (
+              <div>
+                {subfolders.length > 0 && (
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Files</p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredFiles.map((file) => (
+                    <Card
+                      key={file.id}
+                      className={`${card} hover:border-amber-500/30 transition cursor-pointer group ${
+                        selectedFileIds.includes(file.id) ? 'ring-2 ring-amber-500 border-amber-500/50' : ''
+                      }`}
+                      onClick={() => toggleFileSelection(file.id)}
+                    >
+                      <CardContent className="p-0">
+                        {/* Image preview */}
+                        {file.file_type === 'image' && (
+                          <div className="h-36 w-full overflow-hidden rounded-t-lg">
+                            <ThumbnailImage fileId={file.id} />
+                          </div>
+                        )}
+
+                        <div className="p-4">
+                          {/* Top row */}
+                          <div className="flex items-start justify-between mb-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedFileIds.includes(file.id)}
+                              onChange={() => {}}
+                              className="w-4 h-4 rounded accent-amber-500"
+                            />
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => { e.stopPropagation(); window.location.href = `/chat?fileId=${file.id}`; }}
+                                className="h-7 w-7 p-0 hover:bg-amber-600/20 hover:text-amber-400"
+                                title="Chat about this file"
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
+                                className="h-7 w-7 p-0 hover:bg-slate-600/40 hover:text-slate-200"
+                                title="Download"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                              {canDelete && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(file.id); }}
+                                  className="h-7 w-7 p-0 hover:bg-red-600/20 hover:text-red-400"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* File icon + name (only show icon for non-images) */}
+                          <div className="flex items-center gap-2 mb-2">
+                            {file.file_type !== 'image' && (
+                              <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-4 h-4 text-green-400" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-slate-200 font-medium truncate text-sm">
+                                {file.original_filename}
+                              </h3>
+                              <p className="text-xs text-slate-400">{formatBytes(file.file_size)}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${fileTypeBadge[file.file_type] ?? badge.slate}`}>
+                              {file.file_type.toUpperCase()}
+                            </span>
+                            <p className="text-xs text-slate-500">
+                              {new Date(file.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+
+                          {file.tags && file.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {file.tags.slice(0, 2).map((tag) => (
+                                <span key={tag} className={`text-xs px-1.5 py-0.5 rounded-full ${badge.slate}`}>{tag}</span>
+                              ))}
+                              {file.tags.length > 2 && (
+                                <span className="text-xs text-slate-500">+{file.tags.length - 2}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : !isLoading && subfolders.length === 0 ? (
+              <Card className={`${card} border-dashed`}>
+                <CardContent className="p-10 text-center">
+                  <Upload className="w-10 h-10 text-slate-400 mx-auto mb-3 opacity-40" />
+                  <h3 className="text-base font-medium text-slate-200 mb-1">
+                    {searchQuery ? 'No matching files' : 'No files yet'}
+                  </h3>
+                  <p className="text-slate-400 text-sm mb-4">
+                    {searchQuery ? 'Try a different search term' : 'Upload files or create a subfolder to get started'}
+                  </p>
+                  {!searchQuery && canUpload && (
+                    <Button size="sm" onClick={() => fileInputRef.current?.click()} className={btn.primary}>
                       <Upload className="w-4 h-4 mr-2" />
-                      Upload
-                    </>
+                      Upload Files
+                    </Button>
                   )}
-                </span>
-              </Button>
-            </label>
+                </CardContent>
+              </Card>
+            ) : null
           )}
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <Input
-          placeholder="Search files…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className={`pl-10 ${inputBase}`}
-        />
-      </div>
-
-      {/* File grid */}
-      {isLoading ? (
-        <div className="flex items-center justify-center h-48">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-slate-400 mx-auto mb-2" />
-            <p className="text-slate-400 text-sm">Loading files…</p>
-          </div>
-        </div>
-      ) : filteredFiles.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredFiles.map((file) => (
-            <Card
-              key={file.id}
-              className={`${card} hover:border-slate-600 transition cursor-pointer group ${
-                selectedFileIds.includes(file.id) ? 'ring-2 ring-blue-500 border-blue-500/50' : ''
-              }`}
-              onClick={() => toggleFileSelection(file.id)}
-            >
-              <CardContent className="p-4">
-                {/* Top row */}
-                <div className="flex items-start justify-between mb-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedFileIds.includes(file.id)}
-                    onChange={() => {}}
-                    className="w-4 h-4 rounded accent-blue-500"
-                  />
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => { e.stopPropagation(); handleChat(file.id); }}
-                      className="h-7 w-7 p-0 hover:bg-blue-600/20 hover:text-blue-400"
-                      title="Chat"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
-                      className="h-7 w-7 p-0 hover:bg-cyan-600/20 hover:text-cyan-400"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    {canDelete && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(file.id); }}
-                        className="h-7 w-7 p-0 hover:bg-red-600/20 hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* File icon + name */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center flex-shrink-0">
-                    <FileIcon type={file.file_type} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-slate-200 font-medium truncate text-sm">
-                      {file.original_filename}
-                    </h3>
-                    <p className="text-xs text-slate-400">{formatBytes(file.file_size)}</p>
-                  </div>
-                </div>
-
-                {/* File type badge */}
-                <span
-                  className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
-                    fileTypeBadge[file.file_type] ?? badge.slate
-                  }`}
-                >
-                  {file.file_type.toUpperCase()}
-                </span>
-
-                {/* Description */}
-                {file.description && (
-                  <p className="text-xs text-slate-400 line-clamp-2 mt-2">{file.description}</p>
-                )}
-
-                {/* Tags */}
-                {file.tags && file.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {file.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className={`text-xs px-2 py-0.5 rounded-full ${badge.slate}`}>
-                        {tag}
-                      </span>
-                    ))}
-                    {file.tags.length > 3 && (
-                      <span className="text-xs text-slate-400">+{file.tags.length - 3}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Date */}
-                <p className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-700">
-                  {new Date(file.created_at).toLocaleDateString()}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <Card className={`${card} border-dashed`}>
-          <CardContent className="p-12 text-center">
-            <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4 opacity-40" />
-            <h3 className="text-lg font-medium text-slate-200 mb-2">
-              {searchQuery ? 'No matching files' : 'No files yet'}
-            </h3>
-            <p className="text-slate-400 mb-6 text-sm">
-              {searchQuery
-                ? 'Try a different search term'
-                : 'Select a project folder and upload your first file'}
-            </p>
-            {!searchQuery && canUpload && (
-              <label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileUpload}
-                  disabled={isUploading || !selectedFolderId}
-                  className="hidden"
-                  accept=".jpg,.jpeg,.png,.csv"
-                />
-                <Button
-                  asChild
-                  size="sm"
-                  disabled={!selectedFolderId}
-                  className={`${btn.primary} cursor-pointer`}
-                >
-                  <span>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Files
-                  </span>
-                </Button>
-              </label>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Bulk action bar */}
       {selectedFileIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl z-50">
-          <span className="text-sm text-slate-300">
-            {selectedFileIds.length} selected
-          </span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-5 py-3 rounded-xl bg-slate-800 border border-amber-500/30 shadow-2xl z-50">
+          <span className="text-sm text-slate-300">{selectedFileIds.length} selected</span>
           <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
-              className="border-slate-600 text-slate-200 hover:bg-blue-600/20 hover:text-blue-400"
-              onClick={handleChatWithSelected}
+              className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10"
+              onClick={() => { window.location.href = `/chat?fileId=${selectedFileIds[0]}`; }}
             >
               <MessageCircle className="w-4 h-4 mr-2" />
               Chat
             </Button>
             {canDelete && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleBulkDelete}
-              >
+              <Button size="sm" variant="destructive" onClick={handleBulkDelete}>
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
               </Button>
@@ -467,6 +558,13 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      <CreateFolderModal
+        isOpen={createFolderOpen}
+        onClose={() => { setCreateFolderOpen(false); setCreateSubfolderParentId(null); }}
+        onSuccess={handleFolderCreated}
+        parentId={createSubfolderParentId}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * Centralized design tokens for Dr. Terra frontend.
- * Use these constants throughout components to keep the theme consistent.
+ * Amber / orange accent palette to match the landing page.
  */
 
 // ── Background ─────────────────────────────────────────────────────────────
@@ -16,7 +16,7 @@ export const bg = {
 export const border = {
   primary: 'border-slate-700',
   secondary: 'border-slate-600',
-  focus: 'focus:border-blue-500',
+  focus: 'focus:border-amber-500',
 } as const;
 
 // ── Text ────────────────────────────────────────────────────────────────────
@@ -30,8 +30,8 @@ export const text = {
 
 // ── Accent colours ──────────────────────────────────────────────────────────
 export const accent = {
-  blue: 'text-blue-400',
-  cyan: 'text-cyan-400',
+  amber: 'text-amber-400',
+  orange: 'text-orange-400',
   purple: 'text-purple-400',
   green: 'text-green-400',
   red: 'text-red-400',
@@ -40,18 +40,21 @@ export const accent = {
 
 // ── Badge / pill ────────────────────────────────────────────────────────────
 export const badge = {
-  blue: 'bg-blue-600/20 text-blue-300',
+  amber: 'bg-amber-600/20 text-amber-300',
+  orange: 'bg-orange-600/20 text-orange-300',
   green: 'bg-green-600/20 text-green-300',
   purple: 'bg-purple-600/20 text-purple-300',
   red: 'bg-red-600/20 text-red-300',
   yellow: 'bg-yellow-600/20 text-yellow-300',
   slate: 'bg-slate-700/50 text-slate-300',
+  // keep blue alias for any leftover usages
+  blue: 'bg-amber-600/20 text-amber-300',
 } as const;
 
 // ── Buttons ─────────────────────────────────────────────────────────────────
 export const btn = {
   primary:
-    'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white',
+    'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-black font-medium',
   ghost: 'text-slate-200 hover:bg-slate-700/50',
   danger: 'text-red-400 hover:bg-red-600/20',
   outline: 'border-slate-600 text-slate-200 hover:bg-slate-700',
@@ -65,12 +68,12 @@ export const inputBase =
 // ── Role badge colours ───────────────────────────────────────────────────────
 export const roleBadge: Record<string, string> = {
   admin: badge.purple,
-  researcher: badge.blue,
+  researcher: badge.amber,
   user: badge.slate,
 };
 
 // ── File type colours ────────────────────────────────────────────────────────
 export const fileTypeBadge: Record<string, string> = {
-  image: badge.blue,
+  image: badge.amber,
   csv: badge.green,
 };

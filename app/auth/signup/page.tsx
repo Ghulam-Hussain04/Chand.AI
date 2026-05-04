@@ -27,7 +27,7 @@ export default function SignupPage() {
         <Card className="border-slate-700 bg-slate-900/50 backdrop-blur">
           <CardHeader className="space-y-2 text-center">
             <div className="flex justify-center mb-4">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-white" />
               </div>
             </div>
@@ -52,7 +52,7 @@ export default function SignupPage() {
 
         <p className="text-center text-slate-400 text-sm mt-4">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-blue-400 hover:text-blue-300 font-medium">
+          <Link href="/auth/login" className="text-amber-400 hover:text-amber-300 font-medium">
             Sign in
           </Link>
         </p>
