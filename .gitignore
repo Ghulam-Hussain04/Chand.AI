@@ -15,3 +15,6 @@ venv/
 # Ignore local file storage 
 storage/*
 !storage/.gitkeep
+
+chroma_db/
+ 

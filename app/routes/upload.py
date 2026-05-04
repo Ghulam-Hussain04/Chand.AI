@@ -264,6 +264,48 @@ async def list_all_user_files(
     return files
 
 
+@router.get("/search", response_model=List[FileResponseSchema])
+async def search_files(
+    query: str,
+    file_type: Optional[str] = None,
+    folder_id: Optional[int] = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user)
+):
+    """Search files by filename, tags, or description"""
+    files = await FileService.search_files(
+        db=db,
+        user_id=current_user.user_id,
+        query=query,
+        file_type=file_type,
+        folder_id=folder_id,
+        limit=limit
+    )
+    return files
+
+
+@router.get("/stats/user")
+async def get_user_file_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user)
+):
+    """Get file statistics for current user"""
+    stats = await FileService.get_user_file_stats(db, current_user.user_id)
+    return stats
+
+
+@router.get("/recent/modified", response_model=List[FileResponseSchema])
+async def get_recent_files(
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user)
+):
+    """Get recently modified files for current user"""
+    files = await FileService.get_recently_modified_files(db, current_user.user_id, limit)
+    return files
+
+
 @router.get("/{file_id}", response_model=FileResponseSchema)
 async def get_file(
     file_id: int,
@@ -386,35 +428,6 @@ async def list_folder_files(
     files = await FileService.get_folder_files(db, folder_id, current_user.user_id)
     return files
 
-@router.get("/search", response_model=List[FileResponseSchema])
-async def search_files(
-    query: str,
-    file_type: Optional[str] = None,
-    folder_id: Optional[int] = None,
-    limit: int = 50,
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user)
-):
-    """Search files by filename, tags, or description
-    
-    Args:
-        query: Search query
-        file_type: Optional filter (image or csv)
-        folder_id: Optional folder scope
-        limit: Maximum results
-        
-    Returns:
-        List of matching files
-    """
-    files = await FileService.search_files(
-        db=db,
-        user_id=current_user.user_id,
-        query=query,
-        file_type=file_type,
-        folder_id=folder_id,
-        limit=limit
-    )
-    return files
 
 @router.put("/{file_id}")
 async def update_file(
@@ -471,32 +484,3 @@ async def delete_file(
     
     return None
 
-@router.get("/stats/user")
-async def get_user_file_stats(
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user)
-):
-    """Get file statistics for current user
-    
-    Returns:
-        User file stats (counts, totals)
-    """
-    stats = await FileService.get_user_file_stats(db, current_user.user_id)
-    return stats
-
-@router.get("/recent/modified", response_model=List[FileResponseSchema])
-async def get_recent_files(
-    limit: int = 20,
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user)
-):
-    """Get recently modified files for current user
-    
-    Args:
-        limit: Maximum results
-        
-    Returns:
-        List of recently modified files
-    """
-    files = await FileService.get_recently_modified_files(db, current_user.user_id, limit)
-    return files
