@@ -1,11 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from app.routes import auth, chats, files, rag, folders, upload, admin
+from app.db.init_db import init_db, create_default_admin
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await init_db()
+    await create_default_admin()
+    yield
 
 app = FastAPI(
     title="TerraBot Backend API",
     description="Modular RAG + File Management Backend",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
