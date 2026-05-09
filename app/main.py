@@ -1,13 +1,16 @@
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
 
 from app.routes import auth, chats, files, rag, folders, upload, admin
-
+from app.db.init_db import init_db, create_default_admin
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
+    await init_db()
+    await create_default_admin()
     # Warm up the inference model in a background thread so the first
     # request does not pay the cold-start cost.
     from app.inference.model import preload_model
