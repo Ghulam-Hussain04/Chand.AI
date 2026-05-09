@@ -37,12 +37,55 @@ export interface Folder {
   files?: File[];
 }
 
+/** Mission calibration parameters — matches backend ProjectSpecificationResponse */
+export interface ProjectSpecification {
+  id: number;
+  folder_id: number;
+  mission_name: string;
+  meters_per_pixel: number;
+  camera_angle_deg: number;
+  camera_resolution_w: number;
+  camera_resolution_h: number;
+  camera_fov_deg: number;
+  rover_height_m: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Values the user fills in to create or update specifications */
+export interface ProjectSpecificationInput {
+  mission_name: string;
+  meters_per_pixel: number;
+  camera_angle_deg: number;
+  camera_resolution_w: number;
+  camera_resolution_h: number;
+  camera_fov_deg: number;
+  rover_height_m: number;
+  notes?: string | null;
+}
+
+export const DEFAULT_SPECIFICATION: ProjectSpecificationInput = {
+  mission_name: 'Chang3',
+  meters_per_pixel: 0.5,
+  camera_angle_deg: 15.0,
+  camera_resolution_w: 1024,
+  camera_resolution_h: 1024,
+  camera_fov_deg: 45.0,
+  rover_height_m: 1.5,
+  notes: 'Lunar lander with Yutu rover, landed Dec 2013. Camera specs approximate.',
+};
+
 export interface ChatMessage {
   id?: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
   citations?: { file_id: number; page?: number }[];
+  /** True when geo-features were served from the DB cache (no inference ran). */
+  inference_cached?: boolean;
+  /** Total response time in seconds returned by the backend. */
+  response_time_sec?: number;
 }
 
 export interface AppState {

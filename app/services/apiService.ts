@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from '@/app/stores/authStore';
+import type { ProjectSpecificationInput, ProjectSpecification } from '@/app/stores/appStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -56,8 +57,15 @@ class ApiService {
     return response.data;
   }
 
-  async createFolder(name: string, description: string | null = null, parent_id: number | null = null) {
-    const response = await this.client.post('/api/folders', { name, description, parent_id });
+  async createFolder(
+    name: string,
+    description: string | null = null,
+    parent_id: number | null = null,
+    specifications?: ProjectSpecificationInput,
+  ) {
+    const body: Record<string, any> = { name, description, parent_id };
+    if (specifications) body.specifications = specifications;
+    const response = await this.client.post('/api/folders', body);
     return response.data;
   }
 
@@ -96,6 +104,26 @@ class ApiService {
 
   async getSubfolders(folderId: number) {
     const response = await this.client.get(`/api/folders/${folderId}/subfolders`);
+    return response.data;
+  }
+
+  // ── Project Specifications ────────────────────────────────────────────────
+
+  /** Retrieve mission calibration specs for a folder (auto-creates Chang3 defaults if absent). */
+  async getFolderSpecifications(folderId: number): Promise<ProjectSpecification> {
+    const response = await this.client.get(`/api/folders/${folderId}/specifications`);
+    return response.data;
+  }
+
+  /** Fully create or replace specifications for a folder. */
+  async setFolderSpecifications(folderId: number, data: ProjectSpecificationInput): Promise<ProjectSpecification> {
+    const response = await this.client.post(`/api/folders/${folderId}/specifications`, data);
+    return response.data;
+  }
+
+  /** Partially update specifications — only provided fields are changed. */
+  async updateFolderSpecifications(folderId: number, data: Partial<ProjectSpecificationInput>): Promise<ProjectSpecification> {
+    const response = await this.client.put(`/api/folders/${folderId}/specifications`, data);
     return response.data;
   }
 

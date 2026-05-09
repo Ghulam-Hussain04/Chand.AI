@@ -20,12 +20,14 @@ import {
   ChevronDown,
   Image as ImageIcon,
   FolderPlus,
+  Settings2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { hasPermission } from '@/app/lib/rbac';
 import { card, inputBase, btn, badge, fileTypeBadge, text } from '@/app/lib/theme';
 import NextImage from 'next/image';
 import CreateFolderModal from '@/app/components/CreateFolderModal';
+import SpecificationsModal from '@/app/components/SpecificationsModal';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -82,6 +84,7 @@ export default function DocumentsPage() {
   const [breadcrumb, setBreadcrumb] = useState<{ id: number; name: string }[]>([]);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [createSubfolderParentId, setCreateSubfolderParentId] = useState<number | null>(null);
+  const [specsModalOpen, setSpecsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canUpload = user && hasPermission(user.role, 'upload_file');
@@ -311,6 +314,20 @@ export default function DocumentsPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Mission config — only for root projects (no breadcrumb ancestor) */}
+              {selectedFolderId !== null && breadcrumb.length === 1 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-600 text-slate-300 hover:bg-amber-500/10 hover:border-amber-500/50 hover:text-amber-300"
+                  onClick={() => setSpecsModalOpen(true)}
+                  title="Mission calibration settings"
+                >
+                  <Settings2 className="w-4 h-4 mr-1.5" />
+                  Mission Config
+                </Button>
+              )}
+
               {canCreateFolder && selectedFolderId !== null && (
                 <Button
                   size="sm"
@@ -565,6 +582,15 @@ export default function DocumentsPage() {
         onSuccess={handleFolderCreated}
         parentId={createSubfolderParentId}
       />
+
+      {specsModalOpen && selectedFolderId !== null && (
+        <SpecificationsModal
+          isOpen={specsModalOpen}
+          onClose={() => setSpecsModalOpen(false)}
+          folderId={selectedFolderId}
+          folderName={breadcrumb[breadcrumb.length - 1]?.name ?? 'Project'}
+        />
+      )}
     </div>
   );
 }
