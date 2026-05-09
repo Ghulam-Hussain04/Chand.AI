@@ -9,9 +9,17 @@ class Settings(BaseSettings):
     STORAGE_DIR: str
     GROQ_API_KEY: str
 
+    # Inference settings — defaults work out-of-the-box for the Roboflow model
+    INFERENCE_MODEL_NAME: str = "roboflow"
+    INFERENCE_MODEL_PATH: str = "../dr-terra-inference/inference/models"
+    INFERENCE_NUM_CLASSES: int = 6
+    ROBOFLOW_API_KEY: str = "McrhzGgUVuaQbO2a1BX6"
+    ROBOFLOW_WORKSPACE: str = "chandai"
+    ROBOFLOW_PROJECT: str = "lunar-scene-analysis-fejkh"
+    ROBOFLOW_VERSION: int = 5
+
     @property
     def STORAGE_PATH(self) -> str:
-        """Get the full storage path"""
         return os.path.join(os.getcwd(), self.STORAGE_DIR)
 
     class Config:

@@ -5,6 +5,16 @@ from app.config import settings
 import enum
 from datetime import datetime
 
+# Default mission specification values (Chang'e 3 mission)
+DEFAULT_MISSION_NAME = "Chang3"
+DEFAULT_METERS_PER_PIXEL = 0.5
+DEFAULT_CAMERA_ANGLE_DEG = 15.0
+DEFAULT_CAMERA_RESOLUTION_W = 1024
+DEFAULT_CAMERA_RESOLUTION_H = 1024
+DEFAULT_CAMERA_FOV_DEG = 45.0
+DEFAULT_ROVER_HEIGHT_M = 1.5
+DEFAULT_NOTES = "Lunar lander with Yutu rover, landed Dec 2013. Camera specs approximate."
+
 # Create declarative base for models
 Base = declarative_base()
 
@@ -97,6 +107,7 @@ class Folder(Base):
     parent = relationship("Folder", remote_side=[id], backref="subfolders")
     files = relationship("File", back_populates="folder", cascade="all, delete-orphan")
     shared_folders = relationship("SharedFolder", back_populates="folder", cascade="all, delete-orphan")
+    specification = relationship("ProjectSpecification", back_populates="folder", uselist=False, cascade="all, delete-orphan")
 
 # File model - Store image/csv metadata
 class File(Base):
@@ -121,6 +132,7 @@ class File(Base):
     user = relationship("User", back_populates="files")
     file_metadata = relationship("FileMetadata", back_populates="file", uselist=False, cascade="all, delete-orphan")
     chats = relationship("Chat", back_populates="file")
+    lunar_features = relationship("LunarFeatures", back_populates="file", uselist=False, cascade="all, delete-orphan")
 
 # FileMetadata model - Extensible metadata for files
 class FileMetadata(Base):
@@ -159,6 +171,43 @@ class SharedFolder(Base):
     # Relationships
     folder = relationship("Folder", back_populates="shared_folders")
     shared_with_user = relationship("User", backref="shared_folders")
+
+# ProjectSpecification model - Mission calibration parameters per project folder
+class ProjectSpecification(Base):
+    __tablename__ = "project_specifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    folder_id = Column(Integer, ForeignKey("folders.id", ondelete="CASCADE"), unique=True, nullable=False)
+    mission_name = Column(String(255), nullable=False, default=DEFAULT_MISSION_NAME)
+    meters_per_pixel = Column(Float, nullable=False, default=DEFAULT_METERS_PER_PIXEL)
+    camera_angle_deg = Column(Float, nullable=False, default=DEFAULT_CAMERA_ANGLE_DEG)
+    camera_resolution_w = Column(Integer, nullable=False, default=DEFAULT_CAMERA_RESOLUTION_W)
+    camera_resolution_h = Column(Integer, nullable=False, default=DEFAULT_CAMERA_RESOLUTION_H)
+    camera_fov_deg = Column(Float, nullable=False, default=DEFAULT_CAMERA_FOV_DEG)
+    rover_height_m = Column(Float, nullable=False, default=DEFAULT_ROVER_HEIGHT_M)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    folder = relationship("Folder", back_populates="specification")
+
+
+# LunarFeatures model - Cached geo-feature extraction results per image file
+class LunarFeatures(Base):
+    __tablename__ = "lunar_features"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"), unique=True, nullable=False)
+    features = Column(JSON, nullable=False)       # Full geo-pipeline output JSON
+    craters_count = Column(Integer, nullable=False, default=0)
+    rocks_count = Column(Integer, nullable=False, default=0)
+    boulders_count = Column(Integer, nullable=False, default=0)
+    rocky_regions_count = Column(Integer, nullable=False, default=0)
+    model_name = Column(String(255), nullable=True)
+    processed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    file = relationship("File", back_populates="lunar_features")
+
 
 engine = create_async_engine(settings.DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

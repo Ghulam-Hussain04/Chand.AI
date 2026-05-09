@@ -3,8 +3,11 @@ import asyncio
 import os
 from sqlalchemy import select
 from app.db.database import (
-    engine, Base, AsyncSessionLocal, User, RoleEnum, Folder, File, FileMetadata,
-    ChatSession, Chat, InferenceCategoryEnum
+    engine, Base, AsyncSessionLocal,
+    User, RoleEnum,
+    Folder, File, FileMetadata, SharedFolder,
+    ChatSession, Chat, InferenceCategoryEnum,
+    ProjectSpecification, LunarFeatures,  # ensure new tables are created
 )
 from app.security import hash_password
 

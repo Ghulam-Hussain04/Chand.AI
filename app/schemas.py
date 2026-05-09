@@ -4,6 +4,56 @@ from app.db.database import RoleEnum
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+# ==================== Project Specification Schemas ====================
+
+class ProjectSpecificationBase(BaseModel):
+    mission_name: str = "Chang3"
+    meters_per_pixel: float = Field(default=0.5, gt=0)
+    camera_angle_deg: float = Field(default=15.0, ge=0, le=90)
+    camera_resolution_w: int = Field(default=1024, gt=0)
+    camera_resolution_h: int = Field(default=1024, gt=0)
+    camera_fov_deg: float = Field(default=45.0, ge=0, le=360)
+    rover_height_m: float = Field(default=1.5, gt=0)
+    notes: Optional[str] = None
+
+class ProjectSpecificationCreate(ProjectSpecificationBase):
+    pass
+
+class ProjectSpecificationUpdate(BaseModel):
+    mission_name: Optional[str] = None
+    meters_per_pixel: Optional[float] = Field(default=None, gt=0)
+    camera_angle_deg: Optional[float] = Field(default=None, ge=0, le=90)
+    camera_resolution_w: Optional[int] = Field(default=None, gt=0)
+    camera_resolution_h: Optional[int] = Field(default=None, gt=0)
+    camera_fov_deg: Optional[float] = Field(default=None, ge=0, le=360)
+    rover_height_m: Optional[float] = Field(default=None, gt=0)
+    notes: Optional[str] = None
+
+class ProjectSpecificationResponse(ProjectSpecificationBase):
+    id: int
+    folder_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# ==================== Lunar Features Schemas ====================
+
+class LunarFeaturesResponse(BaseModel):
+    id: int
+    file_id: int
+    features: Dict[str, Any]
+    craters_count: int
+    rocks_count: int
+    boulders_count: int
+    rocky_regions_count: int
+    model_name: Optional[str] = None
+    processed_at: datetime
+
+    class Config:
+        from_attributes = True
+
 # ==================== User Schemas ====================
 
 class UserBase(BaseModel):
@@ -38,6 +88,7 @@ class FolderBase(BaseModel):
 
 class FolderCreate(FolderBase):
     parent_id: Optional[int] = None
+    specifications: Optional[ProjectSpecificationCreate] = None  # None → default Chang3 specs
 
 class FolderUpdate(BaseModel):
     name: Optional[str] = None
@@ -152,8 +203,8 @@ class FileUpdateRequest(BaseModel):
 class AskRequest(BaseModel):
     query: str
     session_id: Optional[int] = None
-    file_id: Optional[int] = None  # Optional file scope for RAG
-    folder_id: Optional[int] = None  # Optional folder scope for RAG
+    file_id: Optional[int] = None    # Triggers inference pipeline; result cached in LunarFeatures
+    folder_id: Optional[int] = None  # Optional folder scope for RAG document retrieval
 
 # Update forward references
 FolderWithContents.model_rebuild()
