@@ -22,10 +22,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.config import settings
-from app.db.database import AsyncSession, get_db, ChatSession, Chat
+from app.db.database import AsyncSession, get_db, ChatSession, Chat, RagDocument
 from app.rag.pipeline import ask_llm
 from app.rag.llm_client import ask as call_llm
-from app.schemas import AskRequest
+from app.schemas import AskRequest, RagDocumentResponse
 from app.security import verify_token, verify_admin, TokenPayload
 from app.services import FileService, FolderService
 from app.services.specification_service import SpecificationService
@@ -193,8 +193,10 @@ async def rag_query(
 async def upload_and_vectorize(
     file: UploadFile = File(...),
     current_user: TokenPayload = Depends(verify_admin),
+    db: AsyncSession = Depends(get_db),
 ):
     """Upload and vectorise a PDF document into ChromaDB. Admin only."""
+    os.makedirs(pdf_folder, exist_ok=True)
     file_path = os.path.join(pdf_folder, file.filename)
     if os.path.exists(file_path):
         raise HTTPException(
@@ -202,14 +204,61 @@ async def upload_and_vectorize(
             detail=f"File {file.filename} already exists.",
         )
 
+    content = await file.read()
     with open(file_path, "wb") as f:
-        f.write(await file.read())
+        f.write(content)
 
     chunks = process_single_file(file_path)
     add_docs_to_chroma(chunks)
     setup_bm25_retriever(chunks)
 
-    return {"detail": f"Successfully vectorised {file.filename}", "chunks_added": len(chunks)}
+    doc = RagDocument(
+        filename=file.filename,
+        storage_path=file_path,
+        file_size=len(content),
+        chunks_count=len(chunks),
+        uploaded_by=current_user.user_id,
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+
+    return {"detail": f"Successfully vectorised {file.filename}", "chunks_added": len(chunks), "doc_id": doc.id}
+
+
+@router.get("/docs", response_model=List[RagDocumentResponse])
+async def list_rag_docs(
+    current_user: TokenPayload = Depends(verify_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all vectorised documents. Admin only."""
+    result = await db.execute(select(RagDocument).order_by(RagDocument.created_at.desc()))
+    return result.scalars().all()
+
+
+@router.get("/docs/{doc_id}/preview")
+async def preview_rag_doc(
+    doc_id: int,
+    current_user: TokenPayload = Depends(verify_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream a vectorised document for in-browser preview. Admin only."""
+    result = await db.execute(select(RagDocument).where(RagDocument.id == doc_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if not os.path.exists(doc.storage_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing from disk")
+
+    def iter_file():
+        with open(doc.storage_path, "rb") as f:
+            yield from f
+
+    return StreamingResponse(
+        iter_file(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+    )
 
 
 @router.get("/chunks")

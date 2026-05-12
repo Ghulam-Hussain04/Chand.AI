@@ -209,6 +209,21 @@ class LunarFeatures(Base):
     file = relationship("File", back_populates="lunar_features")
 
 
+# RagDocument model - tracks files uploaded via /rag/upload_and_vectorize
+class RagDocument(Base):
+    __tablename__ = "rag_docs"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    filename     = Column(String(500), nullable=False)
+    storage_path = Column(String(1000), nullable=False)
+    file_size    = Column(Integer, nullable=False)
+    chunks_count = Column(Integer, nullable=False, default=0)
+    uploaded_by  = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    uploader = relationship("User", backref="rag_documents")
+
+
 engine = create_async_engine(settings.DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

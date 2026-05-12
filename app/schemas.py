@@ -201,6 +201,18 @@ class FileUpdateRequest(BaseModel):
 
 # ==================== RAG Schemas ====================
 
+class RagDocumentResponse(BaseModel):
+    id: int
+    filename: str
+    storage_path: str
+    file_size: int
+    chunks_count: int
+    uploaded_by: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class AskRequest(BaseModel):
     query: str
     session_id: Optional[int] = None

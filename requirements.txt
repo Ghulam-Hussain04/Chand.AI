@@ -103,3 +103,4 @@ markdown-it-py==4.0.0
 MarkupSafe==3.0.3 
 marshmallow==3.26.1
 reportlab==4.5.1
+rank_bm25
