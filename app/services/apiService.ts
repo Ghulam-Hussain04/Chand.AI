@@ -255,6 +255,34 @@ class ApiService {
     const response = await this.client.delete(`/admin/users/${userId}`);
     return response.data;
   }
+
+  // ── Admin: Project access management ─────────────────────────────────────
+
+  /** All root projects with owner info and access entries (admin only). */
+  async getAdminFolders(): Promise<any[]> {
+    const response = await this.client.get('/admin/folders');
+    return response.data;
+  }
+
+  /** List users who have access to a project (admin only). */
+  async getFolderAccessList(folderId: number): Promise<any[]> {
+    const response = await this.client.get(`/admin/folders/${folderId}/access`);
+    return response.data;
+  }
+
+  /** Grant or update access for a user on a project (admin only). */
+  async grantFolderAccess(folderId: number, userId: number, permissionLevel: 'read' | 'write') {
+    const response = await this.client.post(`/admin/folders/${folderId}/access`, {
+      user_id: userId,
+      permission_level: permissionLevel,
+    });
+    return response.data;
+  }
+
+  /** Revoke a user's access to a project (admin only). */
+  async revokeFolderAccess(folderId: number, userId: number): Promise<void> {
+    await this.client.delete(`/admin/folders/${folderId}/access/${userId}`);
+  }
 }
 
 export const apiService = new ApiService();

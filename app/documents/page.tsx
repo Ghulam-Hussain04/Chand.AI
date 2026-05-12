@@ -87,9 +87,6 @@ export default function DocumentsPage() {
   const [specsModalOpen, setSpecsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canUpload = user && hasPermission(user.role, 'upload_file');
-  const canDelete = user && hasPermission(user.role, 'delete_file');
-  const canCreateFolder = user && hasPermission(user.role, 'create_folder');
 
   // Load root folders on mount
   useEffect(() => {
@@ -240,6 +237,17 @@ export default function DocumentsPage() {
 
   const selectedFolder = rootFolders.find((f) => f.id === breadcrumb[0]?.id);
 
+  // access_level for the currently selected root project ('owner' | 'write' | 'read' | undefined)
+  const currentRootAccessLevel = selectedFolder?.access_level as string | undefined;
+  const hasWriteAccess =
+    user?.role === 'admin' ||
+    currentRootAccessLevel === 'owner' ||
+    currentRootAccessLevel === 'write';
+  const canUpload = !!(user && hasPermission(user.role, 'upload_file') && hasWriteAccess);
+  const canDelete = !!(user && hasPermission(user.role, 'delete_file') && hasWriteAccess);
+  const canCreateSubfolder = !!(user && hasPermission(user.role, 'create_folder') && hasWriteAccess);
+  const canCreateFolder = !!(user && hasPermission(user.role, 'create_folder'));
+
   return (
     <div className="flex h-full">
       {/* ── Left panel: project list ───────────────────────────── */}
@@ -328,7 +336,7 @@ export default function DocumentsPage() {
                 </Button>
               )}
 
-              {canCreateFolder && selectedFolderId !== null && (
+              {canCreateSubfolder && selectedFolderId !== null && (
                 <Button
                   size="sm"
                   variant="outline"
