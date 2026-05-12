@@ -192,8 +192,9 @@ ANSWER
     # Persist chat record
     # ------------------------------------------------------------------
     if session_id is None:
+        session_title = query[:60].strip() + ("…" if len(query) > 60 else "")
         new_session = ChatSession(
-            title=f"Session {datetime.utcnow().isoformat()}",
+            title=session_title,
             user_id=user_id,
             is_deleted=False,
         )

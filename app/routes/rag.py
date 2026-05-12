@@ -10,16 +10,21 @@ POST /rag/query        — lightweight RAG query without image inference
 POST /rag/upload_and_vectorize — admin: add PDF to ChromaDB
 GET  /rag/chunks       — admin: inspect ChromaDB chunks
 """
+import io
 import os
 import time
-from typing import Optional
+from datetime import datetime
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from app.config import settings
-from app.db.database import AsyncSession, get_db
+from app.db.database import AsyncSession, get_db, ChatSession, Chat
 from app.rag.pipeline import ask_llm
+from app.rag.llm_client import ask as call_llm
 from app.schemas import AskRequest
 from app.security import verify_token, verify_admin, TokenPayload
 from app.services import FileService, FolderService
@@ -223,3 +228,222 @@ async def list_chunks_endpoint(current_user: TokenPayload = Depends(verify_admin
 @router.get("/")
 async def get_all_chunks():
     return list_all_chunks()
+
+
+# ---------------------------------------------------------------------------
+# PDF report generation
+# ---------------------------------------------------------------------------
+
+class ReportRequest(BaseModel):
+    session_id: int
+
+
+def _build_pdf(session_title: str, report_text: str, chats: list) -> bytes:
+    """Render a reportlab PDF and return raw bytes."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.colors import Color, HexColor
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+
+    page_width, page_height = A4
+    logo_resolve = os.path.join("app", "static", "resolve_logo.png")
+    logo_fastnu = os.path.join("app", "static", "fastnu_logo.png")
+    resolve_exists = os.path.exists(logo_resolve)
+    fastnu_exists = os.path.exists(logo_fastnu)
+
+    def draw_decorations(canv, doc):
+        canv.saveState()
+
+        # Diagonal watermark
+        canv.translate(page_width / 2, page_height / 2)
+        canv.rotate(45)
+        canv.setFont("Helvetica-Bold", 60)
+        canv.setFillColor(Color(0.75, 0.75, 0.75, alpha=0.10))
+        canv.drawCentredString(0, 0, "Dr. Terra")
+        canv.rotate(-45)
+        canv.translate(-page_width / 2, -page_height / 2)
+
+        # Footer separator
+        canv.setStrokeColor(Color(0.6, 0.6, 0.6))
+        canv.setLineWidth(0.5)
+        canv.line(2 * cm, 2.0 * cm, page_width - 2 * cm, 2.0 * cm)
+
+        # Logos in footer
+        logo_h = 0.65 * cm
+        if resolve_exists:
+            try:
+                canv.drawImage(logo_resolve, 2 * cm, 1.1 * cm,
+                               height=logo_h, preserveAspectRatio=True, anchor="sw")
+            except Exception:
+                pass
+        if fastnu_exists:
+            try:
+                canv.drawImage(logo_fastnu, page_width - 4.5 * cm, 1.1 * cm,
+                               height=logo_h, preserveAspectRatio=True, anchor="sw")
+            except Exception:
+                pass
+
+        # Page number
+        canv.setFont("Helvetica", 8)
+        canv.setFillColor(Color(0.5, 0.5, 0.5))
+        canv.drawCentredString(page_width / 2, 1.3 * cm, f"Page {canv.getPageNumber()}")
+
+        canv.restoreState()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=2.5 * cm,
+        rightMargin=2.5 * cm,
+        topMargin=2.5 * cm,
+        bottomMargin=3.2 * cm,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "Title2",
+        parent=styles["Title"],
+        fontSize=20,
+        textColor=HexColor("#1a1a2e"),
+        spaceAfter=4,
+        fontName="Helvetica-Bold",
+    )
+    subtitle_style = ParagraphStyle(
+        "Subtitle2",
+        parent=styles["Normal"],
+        fontSize=10,
+        textColor=HexColor("#666666"),
+        spaceAfter=3,
+        fontName="Helvetica",
+    )
+    heading_style = ParagraphStyle(
+        "Heading2",
+        parent=styles["Heading1"],
+        fontSize=13,
+        textColor=HexColor("#1a1a2e"),
+        spaceBefore=10,
+        spaceAfter=4,
+        fontName="Helvetica-Bold",
+    )
+    body_style = ParagraphStyle(
+        "Body2",
+        parent=styles["Normal"],
+        fontSize=10,
+        textColor=HexColor("#333333"),
+        leading=15,
+        spaceAfter=6,
+        alignment=TA_JUSTIFY,
+        fontName="Helvetica",
+    )
+    q_style = ParagraphStyle(
+        "Q2",
+        parent=body_style,
+        textColor=HexColor("#1a3a5c"),
+        fontName="Helvetica-Bold",
+        spaceAfter=2,
+    )
+    a_style = ParagraphStyle(
+        "A2",
+        parent=body_style,
+        textColor=HexColor("#2c2c2c"),
+        spaceAfter=8,
+    )
+
+    story = []
+
+    # Header
+    story.append(Paragraph("Dr. Terra — Lunar Terrain Analysis Report", title_style))
+    story.append(Paragraph(f"Session: {session_title}", subtitle_style))
+    story.append(Paragraph(
+        f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        subtitle_style,
+    ))
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=HexColor("#1a1a2e")))
+    story.append(Spacer(1, 0.3 * cm))
+
+    # Report body — parse paragraphs/headings
+    for line in report_text.split("\n"):
+        line = line.strip()
+        if not line:
+            story.append(Spacer(1, 0.15 * cm))
+            continue
+        is_heading = (
+            line.startswith("#")
+            or (len(line) < 70 and line.endswith(":") and not line.startswith("-"))
+            or (line[0].isdigit() and ". " in line[:5])
+        )
+        clean = line.lstrip("#").strip()
+        story.append(Paragraph(clean, heading_style if is_heading else body_style))
+
+    # Chat transcript
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#aaaaaa")))
+    story.append(Spacer(1, 0.2 * cm))
+    story.append(Paragraph("Chat Session Transcript", heading_style))
+    story.append(Spacer(1, 0.1 * cm))
+    for i, chat in enumerate(chats, 1):
+        story.append(Paragraph(f"Q{i}: {chat.question}", q_style))
+        story.append(Paragraph(f"A{i}: {chat.response}", a_style))
+
+    doc.build(story, onFirstPage=draw_decorations, onLaterPages=draw_decorations)
+    return buffer.getvalue()
+
+
+@router.post("/report")
+async def generate_report(
+    data: ReportRequest,
+    current_user: TokenPayload = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a PDF report from a chat session."""
+    session_result = await db.execute(
+        select(ChatSession).where(
+            ChatSession.id == data.session_id,
+            ChatSession.user_id == current_user.user_id,
+            ChatSession.is_deleted == False,
+        )
+    )
+    session = session_result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    chats_result = await db.execute(
+        select(Chat)
+        .where(Chat.chat_session_id == data.session_id)
+        .order_by(Chat.time.asc())
+    )
+    chats = chats_result.scalars().all()
+    if not chats:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No messages in this session")
+
+    # Ask LLM to generate a structured report from the transcript
+    transcript = "\n\n".join(f"Q: {c.question}\nA: {c.response}" for c in chats)
+    report_prompt = f"""You are an expert lunar terrain analyst generating a formal technical report.
+
+Based on the following chat session transcript about lunar terrain analysis, produce a professional report with these sections:
+1. Executive Summary
+2. Analysis Overview
+3. Key Findings (terrain features, geological observations, measurements)
+4. Technical Details
+5. Conclusions and Recommendations
+
+Chat Session Transcript:
+{transcript}
+
+Write in a formal, third-person scientific style. Be specific about any terrain features, counts, or measurements mentioned. Length: 500–800 words. Do not repeat the Q&A verbatim — synthesise the information into flowing prose."""
+
+    report_text = call_llm(report_prompt)
+
+    pdf_bytes = _build_pdf(session.title, report_text, chats)
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="dr-terra-report-{data.session_id}.pdf"'
+        },
+    )
