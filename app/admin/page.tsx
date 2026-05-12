@@ -9,10 +9,11 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
-import { Users, FileText, Folder, Settings } from 'lucide-react';
+import { Users, FileText, Folder, Settings, BookOpen } from 'lucide-react';
 import UserManagementTab from '@/app/components/admin/UserManagementTab';
 import FileManagementTab from '@/app/components/admin/FileManagementTab';
 import FolderManagementTab from '@/app/components/admin/FolderManagementTab';
+import ReferenceLibraryTab from '@/app/components/admin/ReferenceLibraryTab';
 
 interface Stats {
   userCount: number;
@@ -115,6 +116,10 @@ export default function AdminPage() {
             <Folder className="w-4 h-4" />
             Projects
           </TabsTrigger>
+          <TabsTrigger value="reference" className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4" />
+            Reference Library
+          </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             Settings
@@ -131,6 +136,10 @@ export default function AdminPage() {
 
         <TabsContent value="projects" className="mt-6">
           <FolderManagementTab />
+        </TabsContent>
+
+        <TabsContent value="reference" className="mt-6">
+          <ReferenceLibraryTab />
         </TabsContent>
 
         <TabsContent value="settings" className="mt-6">

@@ -259,6 +259,29 @@ class ApiService {
     return response.data;
   }
 
+  // ── RAG Reference Library ─────────────────────────────────────────────────
+
+  async uploadRagDoc(file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this.client.post('/rag/upload_and_vectorize', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  }
+
+  async getRagDocs(): Promise<any[]> {
+    const response = await this.client.get('/rag/docs');
+    return response.data;
+  }
+
+  async getRagDocPreview(docId: number): Promise<Blob> {
+    const response = await this.client.get(`/rag/docs/${docId}/preview`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
   // ── Admin: User management ────────────────────────────────────────────────
 
   async getUsers() {
