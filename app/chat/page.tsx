@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useAppStore, type ChatMessage } from '@/app/stores/appStore';
 import { apiService } from '@/app/services/apiService';
 import { Button } from '@/app/components/ui/button';
@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/app/components/ui/card';
 import {
   Send, FileText, Loader2, AlertCircle, RotateCcw,
   FolderOpen, ChevronDown, Image as ImageIcon,
-  Zap, Clock, Database,
+  Zap, Clock, Database, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
@@ -53,7 +53,9 @@ function InferenceBadge({
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const fileIdParam = searchParams?.get('fileId');
+  const sessionIdParam = searchParams?.get('sessionId');
 
   const { chatMessages, addChatMessage, setChatMessages, setIsLoading, isLoading, folderHierarchy } =
     useAppStore();
@@ -66,12 +68,14 @@ export default function ChatPage() {
   const [sessionId, setSessionId] = useState<number | undefined>();
   const [activeFolderId, setActiveFolderId] = useState<number | null>(null);
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
-  // Track whether the selected file has previously been analysed (from a prior
-  // session). We use this only for the loading label; the badge comes from the response.
   const [knownCachedFiles, setKnownCachedFiles] = useState<Set<number>>(new Set());
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Tracks a session we just created so we don't reload it when the URL updates
+  const justCreatedSessionRef = useRef<number | null>(null);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -89,16 +93,62 @@ export default function ChatPage() {
       const files = folderId
         ? await apiService.getFolderFiles(folderId)
         : await apiService.getFiles();
-      // Only show image files — CSV files do not support terrain analysis
       setAvailableFiles(files.filter((f: any) => f.file_type === 'image'));
     } catch {
       toast.error('Failed to load files');
     }
   };
 
+  // Load a historical session by ID
+  const loadSession = async (id: number) => {
+    setIsLoadingSession(true);
+    try {
+      const session = await apiService.getChatSession(id);
+      const messages: ChatMessage[] = [];
+      for (const msg of session.messages) {
+        messages.push({
+          id: `${msg.id}-q`,
+          role: 'user',
+          content: msg.question,
+          timestamp: msg.time,
+        });
+        messages.push({
+          id: `${msg.id}-a`,
+          role: 'assistant',
+          content: msg.response,
+          timestamp: msg.time,
+        });
+      }
+      setChatMessages(messages);
+      setSessionId(id);
+    } catch {
+      toast.error('Failed to load chat session');
+    } finally {
+      setIsLoadingSession(false);
+    }
+  };
+
   useEffect(() => {
     loadFilesForFolder(null);
   }, []);
+
+  // When sessionIdParam changes, load that session
+  useEffect(() => {
+    if (sessionIdParam) {
+      const id = parseInt(sessionIdParam);
+      if (!isNaN(id)) {
+        // If we just created this session from a live chat, skip reloading
+        if (justCreatedSessionRef.current === id) {
+          justCreatedSessionRef.current = null;
+          return;
+        }
+        loadSession(id);
+      }
+    } else {
+      setChatMessages([]);
+      setSessionId(undefined);
+    }
+  }, [sessionIdParam]);
 
   const handleFolderSelect = (folderId: number | null) => {
     setActiveFolderId(folderId);
@@ -136,7 +186,6 @@ export default function ChatPage() {
       const isCached: boolean | undefined =
         typeof response.inference_cached === 'boolean' ? response.inference_cached : undefined;
 
-      // Remember this file has been analysed so we can improve the loading label
       if (isCached === false) {
         setKnownCachedFiles((prev) => new Set([...prev, selectedFileId]));
       }
@@ -150,7 +199,13 @@ export default function ChatPage() {
         response_time_sec: response.response_time_sec,
       });
 
-      if (response.session_id && !sessionId) setSessionId(response.session_id);
+      if (response.session_id && !sessionId) {
+        const newSessionId = response.session_id;
+        justCreatedSessionRef.current = newSessionId;
+        setSessionId(newSessionId);
+        // Update URL so the page is bookmarkable and sidebar can highlight it
+        router.replace(`/chat?sessionId=${newSessionId}`, { scroll: false });
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || 'Failed to get a response. Please try again.');
     } finally {
@@ -162,6 +217,28 @@ export default function ChatPage() {
     setChatMessages([]);
     setSessionId(undefined);
     setSelectedFileId(null);
+    router.push('/chat');
+  };
+
+  const handleGenerateReport = async () => {
+    if (!sessionId) return;
+    setIsGeneratingReport(true);
+    try {
+      const blob = await apiService.generateReport(sessionId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dr-terra-report-${sessionId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Report downloaded');
+    } catch {
+      toast.error('Failed to generate report');
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   // Flatten folder hierarchy for dropdown
@@ -174,11 +251,8 @@ export default function ChatPage() {
   const allFolders = folderHierarchy ? flattenFolders(folderHierarchy) : [];
   const activeFolderName = allFolders.find((f) => f.id === activeFolderId)?.name;
 
-  // Determine loading label based on whether we expect cached results
   const isFirstAnalysis = selectedFileId !== null && !knownCachedFiles.has(selectedFileId);
-  const loadingLabel = isFirstAnalysis
-    ? 'Running terrain analysis…'
-    : 'Thinking…';
+  const loadingLabel = isFirstAnalysis ? 'Running terrain analysis…' : 'Thinking…';
 
   return (
     <div className="h-full flex flex-col lg:flex-row gap-4 p-6">
@@ -285,16 +359,36 @@ export default function ChatPage() {
           </div>
         </Card>
 
+        {/* Action buttons */}
         {chatMessages.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full border-slate-600 text-slate-300 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-300"
-            onClick={handleNewChat}
-          >
-            <RotateCcw className="w-4 h-4 mr-2" />
-            New Chat
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full border-slate-600 text-slate-300 hover:bg-amber-500/10 hover:border-amber-500/40 hover:text-amber-300"
+              onClick={handleNewChat}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              New Chat
+            </Button>
+
+            {sessionId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full border-slate-600 text-slate-300 hover:bg-blue-500/10 hover:border-blue-500/40 hover:text-blue-300"
+                onClick={handleGenerateReport}
+                disabled={isGeneratingReport}
+              >
+                {isGeneratingReport ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <FileDown className="w-4 h-4 mr-2" />
+                )}
+                Generate Report
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -303,7 +397,11 @@ export default function ChatPage() {
         <Card className={`${card} flex-1 flex flex-col`}>
           {/* Messages */}
           <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
-            {chatMessages.length === 0 ? (
+            {isLoadingSession ? (
+              <div className="h-full flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+              </div>
+            ) : chatMessages.length === 0 ? (
               <div className="h-full flex items-center justify-center text-center">
                 <div>
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-600/20 to-orange-600/20 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">

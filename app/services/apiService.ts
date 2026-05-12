@@ -234,6 +234,31 @@ class ApiService {
     return response.data;
   }
 
+  // ── Chat sessions ─────────────────────────────────────────────────────────
+
+  async getChatSessions(): Promise<any[]> {
+    const response = await this.client.get('/chats/sessions');
+    return response.data;
+  }
+
+  async getChatSession(sessionId: number): Promise<any> {
+    const response = await this.client.get(`/chats/sessions/${sessionId}`);
+    return response.data;
+  }
+
+  async deleteChatSession(sessionId: number): Promise<void> {
+    await this.client.delete(`/chats/sessions/${sessionId}`);
+  }
+
+  async generateReport(sessionId: number): Promise<Blob> {
+    const response = await this.client.post(
+      '/rag/report',
+      { session_id: sessionId },
+      { responseType: 'blob' }
+    );
+    return response.data;
+  }
+
   // ── Admin: User management ────────────────────────────────────────────────
 
   async getUsers() {

@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAppStore } from '@/app/stores/appStore';
 import { useAuthStore } from '@/app/stores/authStore';
 import { apiService } from '@/app/services/apiService';
 import {
   Folder, LogOut, Menu, X, Plus, ChevronDown,
-  MoreVertical, Trash2, Edit2,
+  MoreVertical, Trash2, Edit2, MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { hasPermission } from '@/app/lib/rbac';
@@ -23,6 +23,7 @@ import EditFolderModal from '@/app/components/EditFolderModal';
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { logout, user } = useAuthStore();
   const {
     sidebarOpen, setSidebarOpen,
@@ -35,6 +36,12 @@ export default function Sidebar() {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [editingFolder, setEditingFolder] = useState<FolderType | null>(null);
   const [hoveredFolderId, setHoveredFolderId] = useState<number | null>(null);
+
+  // Chat session state
+  const [chatSessions, setChatSessions] = useState<any[]>([]);
+  const [chatsExpanded, setChatsExpanded] = useState(true);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [projectsExpanded, setProjectsExpanded] = useState(true);
 
   const canCreateFolder = user && hasPermission(user.role, 'create_folder');
   const canDeleteFolder = user && hasPermission(user.role, 'delete_folder');
@@ -52,7 +59,27 @@ export default function Sidebar() {
     }
   };
 
-  useEffect(() => { loadFolders(); }, []);
+  const loadChatSessions = async () => {
+    setIsLoadingChats(true);
+    try {
+      const sessions = await apiService.getChatSessions();
+      setChatSessions(sessions);
+    } catch {
+      // silently ignore — chats may not exist yet
+    } finally {
+      setIsLoadingChats(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFolders();
+    loadChatSessions();
+  }, []);
+
+  // Refresh chat sessions whenever the user navigates away from /chat
+  useEffect(() => {
+    if (pathname !== '/chat') loadChatSessions();
+  }, [pathname]);
 
   const handleLogout = () => {
     logout();
@@ -79,6 +106,20 @@ export default function Sidebar() {
       await loadFolders();
     } catch {
       toast.error('Failed to delete project');
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: number) => {
+    if (!confirm('Delete this chat session?')) return;
+    try {
+      await apiService.deleteChatSession(sessionId);
+      setChatSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      // If we're currently viewing this session, go to fresh chat
+      if (pathname === '/chat' && searchParams?.get('sessionId') === String(sessionId)) {
+        router.push('/chat');
+      }
+    } catch {
+      toast.error('Failed to delete session');
     }
   };
 
@@ -159,6 +200,37 @@ export default function Sidebar() {
     );
   };
 
+  const ChatSessionItem = ({ session }: { session: any }) => {
+    const activeSessionId = searchParams?.get('sessionId');
+    const isActive = pathname === '/chat' && activeSessionId === String(session.id);
+
+    return (
+      <div
+        className={`w-full flex items-center gap-2 py-1.5 px-3 rounded-lg text-xs group cursor-pointer transition ${
+          isActive
+            ? 'bg-amber-500/15 text-amber-300'
+            : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+        }`}
+        onClick={() => router.push(`/chat?sessionId=${session.id}`)}
+      >
+        <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-500'}`} />
+        <span className="truncate flex-1">{session.title}</span>
+        {session.message_count > 0 && (
+          <span className="text-[9px] px-1.5 py-px rounded-full bg-slate-700 text-slate-400 flex-shrink-0">
+            {session.message_count}
+          </span>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }}
+          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition flex-shrink-0"
+          title="Delete session"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  };
+
   const navLink = (href: string, label: string) => {
     const isActive = pathname === href;
     return (
@@ -210,29 +282,75 @@ export default function Sidebar() {
 
           {/* Projects */}
           <div className="pt-3 mt-1 border-t border-slate-700/60">
-            <div className="flex items-center justify-between px-3 py-1.5 mb-1">
+            <div
+              className="flex items-center justify-between px-3 py-1.5 mb-1 cursor-pointer select-none"
+              onClick={() => setProjectsExpanded((v) => !v)}
+            >
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Projects</h3>
-              {canCreateFolder && (
+              <div className="flex items-center gap-1">
+                {canCreateFolder && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-5 w-5 p-0 hover:bg-amber-500/10 hover:text-amber-400"
+                    onClick={(e) => { e.stopPropagation(); setCreateFolderOpen(true); }}
+                    title="New project"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                )}
+                <ChevronDown
+                  className={`w-3 h-3 text-slate-500 transition-transform ${projectsExpanded ? '' : '-rotate-90'}`}
+                />
+              </div>
+            </div>
+
+            {projectsExpanded && (
+              isLoading ? (
+                <p className="px-3 py-2 text-xs text-slate-500">Loading…</p>
+              ) : folderHierarchy && folderHierarchy.length > 0 ? (
+                folderHierarchy.map((folder) => (
+                  <FolderTreeItem key={folder.id} folder={folder} />
+                ))
+              ) : (
+                <p className="px-3 py-2 text-xs text-slate-500">No projects yet</p>
+              )
+            )}
+          </div>
+
+          {/* Chats */}
+          <div className="pt-3 mt-1 border-t border-slate-700/60">
+            <div
+              className="flex items-center justify-between px-3 py-1.5 mb-1 cursor-pointer select-none"
+              onClick={() => setChatsExpanded((v) => !v)}
+            >
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chats</h3>
+              <div className="flex items-center gap-1">
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-5 w-5 p-0 hover:bg-amber-500/10 hover:text-amber-400"
-                  onClick={() => setCreateFolderOpen(true)}
-                  title="New project"
+                  onClick={(e) => { e.stopPropagation(); router.push('/chat'); }}
+                  title="New chat"
                 >
                   <Plus className="w-3 h-3" />
                 </Button>
-              )}
+                <ChevronDown
+                  className={`w-3 h-3 text-slate-500 transition-transform ${chatsExpanded ? '' : '-rotate-90'}`}
+                />
+              </div>
             </div>
 
-            {isLoading ? (
-              <p className="px-3 py-2 text-xs text-slate-500">Loading…</p>
-            ) : folderHierarchy && folderHierarchy.length > 0 ? (
-              folderHierarchy.map((folder) => (
-                <FolderTreeItem key={folder.id} folder={folder} />
-              ))
-            ) : (
-              <p className="px-3 py-2 text-xs text-slate-500">No projects yet</p>
+            {chatsExpanded && (
+              isLoadingChats ? (
+                <p className="px-3 py-2 text-xs text-slate-500">Loading…</p>
+              ) : chatSessions.length > 0 ? (
+                chatSessions.slice(0, 30).map((session) => (
+                  <ChatSessionItem key={session.id} session={session} />
+                ))
+              ) : (
+                <p className="px-3 py-2 text-xs text-slate-500">No chats yet</p>
+              )
             )}
           </div>
         </nav>
