@@ -34,22 +34,16 @@ async def create_folder(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """
-    Create a new project folder.
-
-    Optionally pass `specifications` to set custom mission calibration params.
-    If omitted, Chang'e 3 defaults are applied automatically.
-    """
     try:
         folder = await FolderService.create_folder(
             db=db,
             user_id=current_user.user_id,
             folder_data=folder_data,
+            role=current_user.role,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    # Create project specification — custom or default
     if folder_data.specifications:
         s = folder_data.specifications
         await SpecificationService.upsert(
@@ -75,8 +69,8 @@ async def get_root_hierarchy(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Full hierarchy tree for all root folders owned by the current user."""
-    return await FolderService.get_user_folder_trees(db, current_user.user_id)
+    """Full hierarchy tree for all accessible root folders, with access_level on each node."""
+    return await FolderService.get_user_folder_trees(db, current_user.user_id, current_user.role)
 
 
 @router.get("", response_model=List[FolderResponse])
@@ -84,8 +78,22 @@ async def list_user_root_folders(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """List all root-level folders for the current user."""
-    return await FolderService.get_user_root_folders(db=db, user_id=current_user.user_id)
+    """List accessible root folders with computed access_level."""
+    folders = await FolderService.get_user_root_folders(db, current_user.user_id, current_user.role)
+    result = []
+    for folder in folders:
+        level = await FolderService.get_access_level(db, folder, current_user.user_id, current_user.role)
+        result.append({
+            "id": folder.id,
+            "name": folder.name,
+            "description": folder.description,
+            "parent_id": folder.parent_id,
+            "user_id": folder.user_id,
+            "created_at": folder.created_at,
+            "updated_at": folder.updated_at,
+            "access_level": level,
+        })
+    return result
 
 
 @router.get("/{folder_id}", response_model=FolderResponse)
@@ -94,7 +102,7 @@ async def get_folder(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    folder = await FolderService.get_folder(db=db, folder_id=folder_id, user_id=current_user.user_id)
+    folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
     return folder
@@ -106,10 +114,10 @@ async def list_subfolders(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    parent = await FolderService.get_folder(db, folder_id, current_user.user_id)
+    parent = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
     if not parent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent folder not found")
-    return await FolderService.get_subfolders(db=db, parent_id=folder_id, user_id=current_user.user_id)
+    return await FolderService.get_subfolders(db, folder_id, current_user.user_id, current_user.role)
 
 
 @router.get("/{folder_id}/hierarchy", response_model=dict)
@@ -119,7 +127,7 @@ async def get_folder_hierarchy(
     current_user: TokenPayload = Depends(get_current_user),
 ):
     hierarchy = await FolderService.get_folder_hierarchy(
-        db=db, folder_id=folder_id, user_id=current_user.user_id
+        db=db, folder_id=folder_id, user_id=current_user.user_id, role=current_user.role
     )
     if not hierarchy:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
@@ -134,11 +142,11 @@ async def update_folder(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Update folder name and/or description via query parameters."""
     folder = await FolderService.update_folder(
         db=db,
         folder_id=folder_id,
         user_id=current_user.user_id,
+        role=current_user.role,
         name=name,
         description=description,
     )
@@ -160,6 +168,7 @@ async def move_folder(
             folder_id=folder_id,
             new_parent_id=new_parent_id,
             user_id=current_user.user_id,
+            role=current_user.role,
         )
         if not folder:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
@@ -180,6 +189,7 @@ async def delete_folder(
             db=db,
             folder_id=folder_id,
             user_id=current_user.user_id,
+            role=current_user.role,
             cascade=cascade,
         )
         if not deleted:
@@ -197,7 +207,7 @@ async def get_folder_stats(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    folder = await FolderService.get_folder(db, folder_id, current_user.user_id)
+    folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
     stats = await FolderService.get_folder_contents_count(db, folder_id)
@@ -214,12 +224,7 @@ async def get_specifications(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """
-    Get mission calibration specifications for a project folder.
-
-    Automatically creates and returns Chang'e 3 defaults if none exist.
-    """
-    folder = await FolderService.get_folder(db, folder_id, current_user.user_id)
+    folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
     return await SpecificationService.get_or_create_default(db, folder_id)
@@ -232,18 +237,10 @@ async def update_specifications(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """
-    Update mission calibration specifications for a project folder.
-
-    Only provided fields are updated; omitted fields retain their current value.
-    """
-    folder = await FolderService.get_folder(db, folder_id, current_user.user_id)
+    folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
-
-    # Load existing (or default) then apply partial updates
     existing = await SpecificationService.get_or_create_default(db, folder_id)
-
     return await SpecificationService.upsert(
         db=db,
         folder_id=folder_id,
@@ -265,13 +262,9 @@ async def set_specifications(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """
-    Set (create or fully replace) mission calibration specifications for a project folder.
-    """
-    folder = await FolderService.get_folder(db, folder_id, current_user.user_id)
+    folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
     if not folder:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
-
     return await SpecificationService.upsert(
         db=db,
         folder_id=folder_id,

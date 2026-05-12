@@ -100,7 +100,8 @@ class FolderResponse(FolderBase):
     user_id: int
     created_at: datetime
     updated_at: datetime
-    
+    access_level: Optional[str] = None  # 'owner', 'write', 'read'
+
     class Config:
         from_attributes = True
 
@@ -205,6 +206,29 @@ class AskRequest(BaseModel):
     session_id: Optional[int] = None
     file_id: Optional[int] = None    # Triggers inference pipeline; result cached in LunarFeatures
     folder_id: Optional[int] = None  # Optional folder scope for RAG document retrieval
+
+# ==================== Folder Access Schemas ====================
+
+class FolderAccessGrant(BaseModel):
+    user_id: int
+    permission_level: str  # 'read' or 'write'
+
+class FolderAccessEntry(BaseModel):
+    user_id: int
+    username: str
+    email: str
+    permission_level: str
+    granted_at: datetime
+
+class AdminFolderItem(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    owner_id: int
+    owner_username: str
+    file_count: int
+    created_at: datetime
+    access_entries: List[FolderAccessEntry] = []
 
 # Update forward references
 FolderWithContents.model_rebuild()

@@ -1,10 +1,11 @@
 """Routes for file operations - Upload, download, search, delete"""
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 import os
-from app.db.database import get_db, User
+from app.db.database import get_db, User, File as FileModel
 from app.security import verify_token, TokenPayload
 from app.schemas import (
     FileResponse as FileResponseSchema,
@@ -45,13 +46,14 @@ async def upload_file(
         Upload result with file ID
     """
     try:
-        # Verify folder exists and user has access
-        folder = await FolderService.get_folder(db, folder_id, current_user.user_id)
+        # Verify folder exists and user has write access
+        folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
         if not folder:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Folder not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+
+        can_write = await FolderService.can_write_to_folder(db, folder_id, current_user.user_id, current_user.role)
+        if not can_write:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required for this folder")
         
         # Read file content
         content = await file.read()
@@ -312,22 +314,14 @@ async def get_file(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user)
 ):
-    """Get file metadata
-    
-    Args:
-        file_id: File ID
-        
-    Returns:
-        File metadata
-    """
-    file = await FileService.get_file(db, file_id, current_user.user_id)
-    
+    """Get file metadata — accessible to anyone with access to the containing folder."""
+    file_result = await db.execute(select(FileModel).where(FileModel.id == file_id))
+    file = file_result.scalar_one_or_none()
     if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    folder = await FolderService.get_folder(db, file.folder_id, current_user.user_id, current_user.role)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     return file
 
 @router.get("/download/{file_id}")
@@ -336,17 +330,13 @@ async def download_file(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user)
 ):
-    """Download file content
-    
-    Args:
-        file_id: File ID
-        
-    Returns:
-        File content as download
-    """
-    file = await FileService.get_file(db, file_id, current_user.user_id)
-    
+    """Download file — accessible to anyone with folder access."""
+    file_result = await db.execute(select(FileModel).where(FileModel.id == file_id))
+    file = file_result.scalar_one_or_none()
     if not file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    folder = await FolderService.get_folder(db, file.folder_id, current_user.user_id, current_user.role)
+    if not folder:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found"
@@ -389,14 +379,14 @@ async def get_thumbnail(
     Returns:
         Thumbnail image
     """
-    file = await FileService.get_file(db, file_id, current_user.user_id)
-    
+    file_result = await db.execute(select(FileModel).where(FileModel.id == file_id))
+    file = file_result.scalar_one_or_none()
     if not file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    folder = await FolderService.get_folder(db, file.folder_id, current_user.user_id, current_user.role)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
     # Get thumbnail from storage
     thumbnail = await StorageService.get_thumbnail(current_user.user_id, file_id)
     
@@ -417,16 +407,14 @@ async def list_folder_files(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user)
 ):
-    """Get all files in a folder
-    
-    Args:
-        folder_id: Folder ID
-        
-    Returns:
-        List of files in folder
-    """
-    files = await FileService.get_folder_files(db, folder_id, current_user.user_id)
-    return files
+    """Get all files in a folder — accessible to anyone with folder access."""
+    folder = await FolderService.get_folder(db, folder_id, current_user.user_id, current_user.role)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
+    result = await db.execute(
+        select(FileModel).where(FileModel.folder_id == folder_id).order_by(FileModel.created_at.desc())
+    )
+    return result.scalars().all()
 
 
 @router.put("/{file_id}")
@@ -460,27 +448,29 @@ async def delete_file(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user)
 ):
-    """Delete file
-    
-    Args:
-        file_id: File ID
-        delete_from_storage: If True, also delete from disk
-        
-    Returns:
-        204 No Content on success
-    """
+    """Delete file — allowed for file owner, folder write-access users, and admin."""
+    file_result = await db.execute(select(FileModel).where(FileModel.id == file_id))
+    file_obj = file_result.scalar_one_or_none()
+    if not file_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    # Verify the caller can access the containing folder
+    folder = await FolderService.get_folder(db, file_obj.folder_id, current_user.user_id, current_user.role)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+
+    can_write = await FolderService.can_write_to_folder(db, file_obj.folder_id, current_user.user_id, current_user.role)
+    if not can_write:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write access required")
+
+    # Pass the file's actual owner_id so FileService user_id check passes
     deleted = await FileService.delete_file(
         db=db,
         file_id=file_id,
-        user_id=current_user.user_id,
-        delete_from_storage=delete_from_storage
+        user_id=file_obj.user_id,
+        delete_from_storage=delete_from_storage,
     )
-    
     if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="File not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
     return None
 
