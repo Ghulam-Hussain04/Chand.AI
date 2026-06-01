@@ -81,6 +81,11 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
+  attachment?: {
+    file_id: number;
+    filename: string;
+    file_type: string;
+  };
   citations?: { file_id: number; page?: number }[];
   /** True when geo-features were served from the DB cache (no inference ran). */
   inference_cached?: boolean;

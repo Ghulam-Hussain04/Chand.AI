@@ -17,17 +17,15 @@ import {
   Search,
   FolderOpen,
   ChevronRight,
-  ChevronDown,
-  Image as ImageIcon,
   FolderPlus,
   Settings2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { hasPermission } from '@/app/lib/rbac';
-import { card, inputBase, btn, badge, fileTypeBadge, text } from '@/app/lib/theme';
-import NextImage from 'next/image';
+import { card, inputBase, btn, badge, fileTypeBadge } from '@/app/lib/theme';
 import CreateFolderModal from '@/app/components/CreateFolderModal';
 import SpecificationsModal from '@/app/components/SpecificationsModal';
+import FileThumbnail from '@/app/components/FileThumbnail';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -35,35 +33,6 @@ function formatBytes(bytes: number): string {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
-
-function ThumbnailImage({ fileId }: { fileId: number }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    apiService.getThumbnail(fileId).then((url) => {
-      objectUrl = url;
-      setSrc(url);
-    });
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [fileId]);
-
-  if (!src) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-700/30 rounded-lg">
-        <ImageIcon className="w-8 h-8 text-slate-600" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative w-full h-full">
-      <NextImage src={src} alt="" fill className="object-cover rounded-lg" unoptimized />
-    </div>
-  );
 }
 
 export default function DocumentsPage() {
@@ -451,7 +420,11 @@ export default function DocumentsPage() {
                         {/* Image preview */}
                         {file.file_type === 'image' && (
                           <div className="h-36 w-full overflow-hidden rounded-t-lg">
-                            <ThumbnailImage fileId={file.id} />
+                            <FileThumbnail
+                              fileId={file.id}
+                              alt={file.original_filename}
+                              className="rounded-t-lg"
+                            />
                           </div>
                         )}
 

@@ -8,13 +8,14 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Card, CardContent } from '@/app/components/ui/card';
 import {
-  Send, FileText, Loader2, AlertCircle, RotateCcw,
+  Send, Loader2, AlertCircle, RotateCcw,
   FolderOpen, ChevronDown, Image as ImageIcon,
   Zap, Clock, Database, FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ReactMarkdown from 'react-markdown';
-import { card, inputBase, btn, badge, fileTypeBadge } from '@/app/lib/theme';
+import { card, inputBase, btn, badge } from '@/app/lib/theme';
+import FileThumbnail from '@/app/components/FileThumbnail';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -174,6 +175,13 @@ export default function ChatPage() {
       role: 'user',
       content: inputMessage,
       timestamp: new Date().toISOString(),
+      attachment: selectedFile
+        ? {
+            file_id: selectedFile.id,
+            filename: selectedFile.original_filename,
+            file_type: selectedFile.file_type,
+          }
+        : undefined,
     };
     addChatMessage(userMessage);
     const currentInput = inputMessage;
@@ -250,6 +258,7 @@ export default function ChatPage() {
 
   const allFolders = folderHierarchy ? flattenFolders(folderHierarchy) : [];
   const activeFolderName = allFolders.find((f) => f.id === activeFolderId)?.name;
+  const selectedFile = availableFiles.find((file) => file.id === selectedFileId);
 
   const isFirstAnalysis = selectedFileId !== null && !knownCachedFiles.has(selectedFileId);
   const loadingLabel = isFirstAnalysis ? 'Running terrain analysis…' : 'Thinking…';
@@ -332,8 +341,13 @@ export default function ChatPage() {
                       onChange={() => setSelectedFileId(file.id)}
                       className="w-4 h-4 accent-amber-500 mt-0.5"
                     />
-                    <div className="w-4 h-4 rounded bg-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <ImageIcon className="w-2.5 h-2.5 text-amber-400" />
+                    <div className="w-12 h-12 rounded-md overflow-hidden bg-slate-800 border border-slate-700 flex-shrink-0">
+                      <FileThumbnail
+                        fileId={file.id}
+                        alt={file.original_filename}
+                        className="rounded-md"
+                        iconClassName="w-4 h-4"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-slate-200 truncate">{file.original_filename}</p>
@@ -441,7 +455,18 @@ export default function ChatPage() {
                           <ReactMarkdown>{message.content}</ReactMarkdown>
                         </div>
                       ) : (
-                        <p className="text-sm leading-relaxed">{message.content}</p>
+                        <>
+                          {message.attachment?.file_type === 'image' && (
+                            <div className="mb-2 w-48 h-32 overflow-hidden rounded-lg border border-amber-500/20 bg-slate-800">
+                              <FileThumbnail
+                                fileId={message.attachment.file_id}
+                                alt={message.attachment.filename}
+                                className="rounded-lg"
+                              />
+                            </div>
+                          )}
+                          <p className="text-sm leading-relaxed">{message.content}</p>
+                        </>
                       )}
 
                       <div className="flex items-center justify-between flex-wrap gap-2 mt-1.5">
@@ -487,6 +512,24 @@ export default function ChatPage() {
 
           {/* Input bar */}
           <div className="border-t border-slate-700 p-4">
+            {selectedFile && (
+              <div className="mb-3 flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-2">
+                <div className="w-16 h-12 overflow-hidden rounded-md bg-slate-900 border border-slate-700 flex-shrink-0">
+                  <FileThumbnail
+                    fileId={selectedFile.id}
+                    alt={selectedFile.original_filename}
+                    className="rounded-md"
+                    iconClassName="w-4 h-4"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-200 truncate">
+                    {selectedFile.original_filename}
+                  </p>
+                  <p className="text-[11px] text-slate-500">Selected image</p>
+                </div>
+              </div>
+            )}
             {!selectedFileId && (
               <div className="mb-3 flex items-center gap-2 p-3 rounded-lg bg-amber-900/10 border border-amber-700/30">
                 <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
