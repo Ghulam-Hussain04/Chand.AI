@@ -78,8 +78,7 @@ async def ask(
     cached_feature_id: Optional[int] = None
 
     if data.file_id:
-        # Verify file ownership
-        file = await FileService.get_file(db, data.file_id, user_id)
+        file = await FileService.get_file(db, data.file_id, user_id, current_user.role)
         if not file:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -163,16 +162,16 @@ async def rag_query(
     source_files = None
 
     if request.file_id:
-        file = await FileService.get_file(db, request.file_id, current_user.user_id)
+        file = await FileService.get_file(db, request.file_id, current_user.user_id, current_user.role)
         if not file:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found or access denied")
         source_files = [file.original_filename]
 
     elif request.folder_id:
-        folder = await FolderService.get_folder(db, request.folder_id, current_user.user_id)
+        folder = await FolderService.get_folder(db, request.folder_id, current_user.user_id, current_user.role)
         if not folder:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found or access denied")
-        files = await FileService.get_folder_files(db, request.folder_id, current_user.user_id)
+        files = await FileService.get_folder_files(db, request.folder_id, current_user.user_id, current_user.role)
         source_files = [f.original_filename for f in files]
 
     outcome = await ask_llm(

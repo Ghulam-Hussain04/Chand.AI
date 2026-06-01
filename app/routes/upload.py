@@ -92,6 +92,7 @@ async def upload_file(
             storage_path=storage_path,
             file_type=file_type,
             file_size=len(content),
+            role=current_user.role,
             tags=tags_list,
             description=description
         )
@@ -223,7 +224,8 @@ async def upload_batch(
                 original_filename=file.filename,
                 storage_path=storage_path,
                 file_type=file_type,
-                file_size=len(content)
+                file_size=len(content),
+                role=current_user.role,
             )
             
             results.append(FileUploadResponse(
@@ -262,7 +264,7 @@ async def list_all_user_files(
     current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get all files for the current user across all folders"""
-    files = await FileService.get_all_user_files(db, current_user.user_id)
+    files = await FileService.get_all_user_files(db, current_user.user_id, current_user.role)
     return files
 
 
@@ -280,6 +282,7 @@ async def search_files(
         db=db,
         user_id=current_user.user_id,
         query=query,
+        role=current_user.role,
         file_type=file_type,
         folder_id=folder_id,
         limit=limit
@@ -293,7 +296,7 @@ async def get_user_file_stats(
     current_user: TokenPayload = Depends(get_current_user)
 ):
     """Get file statistics for current user"""
-    stats = await FileService.get_user_file_stats(db, current_user.user_id)
+    stats = await FileService.get_user_file_stats(db, current_user.user_id, current_user.role)
     return stats
 
 
@@ -304,7 +307,7 @@ async def get_recent_files(
     current_user: TokenPayload = Depends(get_current_user)
 ):
     """Get recently modified files for current user"""
-    files = await FileService.get_recently_modified_files(db, current_user.user_id, limit)
+    files = await FileService.get_recently_modified_files(db, current_user.user_id, current_user.role, limit)
     return files
 
 

@@ -5,7 +5,8 @@ Handles file upload, retrieval, search, and metadata management.
 """
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.database import File, FileMetadata, Folder
+from app.db.database import File, FileMetadata
+from app.services.folder_service import FolderService
 from app.services.storage_service import StorageService
 from typing import List, Optional, Dict, Any
 import json
@@ -23,6 +24,7 @@ class FileService:
         storage_path: str,
         file_type: str,  # 'image' or 'csv'
         file_size: int,
+        role: str = "user",
         tags: Optional[List[str]] = None,
         description: Optional[str] = None
     ) -> File:
@@ -47,15 +49,8 @@ class FileService:
         Raises:
             ValueError: If folder doesn't exist or access denied
         """
-        # Verify folder exists and user has access
-        folder_result = await db.execute(
-            select(Folder).where(
-                (Folder.id == folder_id) &
-                (Folder.user_id == user_id)
-            )
-        )
-        
-        if not folder_result.scalar_one_or_none():
+        can_write = await FolderService.can_write_to_folder(db, folder_id, user_id, role)
+        if not can_write:
             raise ValueError("Folder not found or access denied")
         
         # Create file
@@ -81,7 +76,8 @@ class FileService:
     async def get_file(
         db: AsyncSession,
         file_id: int,
-        user_id: int
+        user_id: int,
+        role: str = "user",
     ) -> Optional[File]:
         """
         Get file by ID with access control
@@ -94,19 +90,20 @@ class FileService:
         Returns:
             File object or None if not found/access denied
         """
-        result = await db.execute(
-            select(File).where(
-                (File.id == file_id) &
-                (File.user_id == user_id)
-            )
-        )
-        return result.scalar_one_or_none()
+        result = await db.execute(select(File).where(File.id == file_id))
+        file = result.scalar_one_or_none()
+        if not file:
+            return None
+
+        folder = await FolderService.get_folder(db, file.folder_id, user_id, role)
+        return file if folder else None
     
     @staticmethod
     async def get_folder_files(
         db: AsyncSession,
         folder_id: int,
-        user_id: int
+        user_id: int,
+        role: str = "user",
     ) -> List[File]:
         """
         Get all files in a folder
@@ -119,15 +116,8 @@ class FileService:
         Returns:
             List of files in folder
         """
-        # Verify user has access to folder
-        folder_result = await db.execute(
-            select(Folder).where(
-                (Folder.id == folder_id) &
-                (Folder.user_id == user_id)
-            )
-        )
-        
-        if not folder_result.scalar_one_or_none():
+        folder = await FolderService.get_folder(db, folder_id, user_id, role)
+        if not folder:
             return []
         
         # Get files
@@ -139,24 +129,42 @@ class FileService:
     @staticmethod
     async def get_all_user_files(
         db: AsyncSession,
-        user_id: int
+        user_id: int,
+        role: str = "user",
     ) -> List[File]:
         """
-        Get all files owned by the user across all folders.
+        Get all files visible to the user across owned and shared folders.
 
         Returns:
             List of files ordered by most recently created
         """
+        if role == "admin":
+            result = await db.execute(select(File).order_by(File.created_at.desc()))
+            return list(result.scalars().all())
+
+        folders = await FolderService.get_user_folder_trees(db, user_id, role)
+        folder_ids: List[int] = []
+
+        def collect_ids(nodes: List[Dict[str, Any]]) -> None:
+            for node in nodes:
+                folder_ids.append(node["id"])
+                collect_ids(node.get("children") or [])
+
+        collect_ids(folders)
+        if not folder_ids:
+            return []
+
         result = await db.execute(
-            select(File).where(File.user_id == user_id).order_by(File.created_at.desc())
+            select(File).where(File.folder_id.in_(folder_ids)).order_by(File.created_at.desc())
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     @staticmethod
     async def search_files(
         db: AsyncSession,
         user_id: int,
         query: str,
+        role: str = "user",
         file_type: Optional[str] = None,
         folder_id: Optional[int] = None,
         limit: int = 50
@@ -175,7 +183,7 @@ class FileService:
         Returns:
             List of matching files
         """
-        filters = [File.user_id == user_id]
+        filters = []
         
         # Add search filters
         search_term = f"%{query}%"
@@ -193,17 +201,16 @@ class FileService:
             filters.append(File.file_type == file_type)
         
         if folder_id:
-            # Verify user has access to folder
-            folder_result = await db.execute(
-                select(Folder).where(
-                    (Folder.id == folder_id) &
-                    (Folder.user_id == user_id)
-                )
-            )
-            if folder_result.scalar_one_or_none():
-                filters.append(File.folder_id == folder_id)
-            else:
+            folder = await FolderService.get_folder(db, folder_id, user_id, role)
+            if not folder:
                 return []
+            filters.append(File.folder_id == folder_id)
+        elif role != "admin":
+            visible_files = await FileService.get_all_user_files(db, user_id, role)
+            visible_file_ids = [file.id for file in visible_files]
+            if not visible_file_ids:
+                return []
+            filters.append(File.id.in_(visible_file_ids))
         
         # Execute search
         result = await db.execute(
@@ -365,7 +372,8 @@ class FileService:
     @staticmethod
     async def get_user_file_stats(
         db: AsyncSession,
-        user_id: int
+        user_id: int,
+        role: str = "user",
     ) -> Dict[str, Any]:
         """
         Get file statistics for user
@@ -377,11 +385,7 @@ class FileService:
         Returns:
             Dictionary with file stats
         """
-        # Count all files
-        result = await db.execute(
-            select(File).where(File.user_id == user_id)
-        )
-        all_files = result.scalars().all()
+        all_files = await FileService.get_all_user_files(db, user_id, role)
         
         # Count by file type
         images = [f for f in all_files if f.file_type == 'image']
@@ -407,6 +411,7 @@ class FileService:
     async def get_recently_modified_files(
         db: AsyncSession,
         user_id: int,
+        role: str = "user",
         limit: int = 20
     ) -> List[File]:
         """
@@ -420,9 +425,15 @@ class FileService:
         Returns:
             List of recently modified files
         """
+        visible_files = await FileService.get_all_user_files(db, user_id, role)
+        visible_file_ids = [file.id for file in visible_files]
+        if not visible_file_ids:
+            return []
+
         result = await db.execute(
-            select(File).where(File.user_id == user_id)
+            select(File)
+            .where(File.id.in_(visible_file_ids))
             .order_by(File.updated_at.desc())
             .limit(limit)
         )
-        return result.scalars().all()
+        return list(result.scalars().all())
