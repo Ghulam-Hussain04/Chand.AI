@@ -133,6 +133,27 @@ export default function ChatPage() {
     loadFilesForFolder(null);
   }, []);
 
+  useEffect(() => {
+    const id = fileIdParam ? parseInt(fileIdParam) : null;
+    if (!id || Number.isNaN(id)) return;
+
+    setSelectedFileId(id);
+    setActiveFolderId(null);
+
+    const alreadyLoaded = availableFiles.some((file) => file.id === id);
+    if (alreadyLoaded) return;
+
+    apiService.getFile(id)
+      .then((file) => {
+        if (file?.file_type === 'image') {
+          setAvailableFiles((prev) => (
+            prev.some((existing) => existing.id === file.id) ? prev : [file, ...prev]
+          ));
+        }
+      })
+      .catch(() => toast.error('Selected image is no longer available'));
+  }, [fileIdParam]);
+
   // When sessionIdParam changes, load that session
   useEffect(() => {
     if (sessionIdParam) {
