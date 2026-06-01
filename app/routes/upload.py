@@ -1,6 +1,6 @@
 """Routes for file operations - Upload, download, search, delete"""
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
@@ -349,15 +349,15 @@ async def download_file(
         filename = parts[-1]
         
         content = await StorageService.get_file(
-            current_user.user_id,
+            file.user_id,
             folder_id,
             filename
         )
         
-        return FileResponse(
+        return Response(
             content=content,
-            filename=file.original_filename,
-            media_type="application/octet-stream"
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{file.original_filename}"'},
         )
     except FileNotFoundError:
         raise HTTPException(
@@ -388,7 +388,7 @@ async def get_thumbnail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     # Get thumbnail from storage
-    thumbnail = await StorageService.get_thumbnail(current_user.user_id, file_id)
+    thumbnail = await StorageService.get_thumbnail(file.user_id, file_id)
     
     if not thumbnail:
         raise HTTPException(
@@ -396,7 +396,7 @@ async def get_thumbnail(
             detail="Thumbnail not found"
         )
     
-    return FileResponse(
+    return Response(
         content=thumbnail,
         media_type="image/jpeg"
     )
