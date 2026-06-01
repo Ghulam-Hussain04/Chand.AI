@@ -10,8 +10,10 @@ def retrieve_document(user_query: str, parsed_query: dict) -> tuple[list[Documen
 
     # 1) Primary vector search
     results_with_scores = vectordb.similarity_search_with_score(user_query, k=5)
+    if not results_with_scores:
+        return [], 0.0
     top_doc = results_with_scores[0][0]
-    chroma_score = results_with_scores[0][1] if results_with_scores else 0.0
+    chroma_score = results_with_scores[0][1]
 
     # 2) Compute cosine similarity
     try:
